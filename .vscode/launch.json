@@ -1,0 +1,17 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "cppdbg",
+            "request": "launch",
+            "name": "Launch Program",
+            "program": "${workspaceFolder}/Build/Bin/Windows_MiniUI.exe",
+            "cwd": "${workspaceFolder}",
+            "preLaunchTask": "MiniUI Build",
+            "windows": {
+                "MIMode": "gdb",
+                "miDebuggerPath": "C:/gcc/mingw32/bin/gdb.exe",
+            }
+        }
+    ],
+}
