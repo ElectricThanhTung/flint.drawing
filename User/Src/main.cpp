@@ -5,7 +5,11 @@
 #include <stdint.h>
 #include <graphics.h>
 
-#include "flint_rgb565_drawing.h"
+#include "flint_rgb565_draw_line.h"
+#include "flint_rgb565_draw_rect.h"
+#include "flint_rgb565_draw_ellipse.h"
+
+#include <math.h>
 
 using namespace std;
 
@@ -39,26 +43,30 @@ int main(void) {
     int gd = DETECT, gm;
     initgraph(&gd, &gm, (char *)"");
 
-    uint8_t *buff = new uint8_t[400 * 400 * 2];
-    memset(buff, 0, 400 * 400 * 2);
+    int w = 500;
+    int h = 500;
+
+    uint8_t *buff = new uint8_t[w * h * 2];
+    memset(buff, 0, w * h * 2);
     FGfx g;
-    g.w = 400;
-    g.h = 400;
+    g.w = w;
+    g.h = h;
     g.clipX1 = 0;
     g.clipY1 = 0;
-    g.clipX2 = 500 - 1;
-    g.clipY2 = 500 - 1;
+    g.clipX2 = w - 1;
+    g.clipY2 = h - 1;
     g.data = buff;
 
     uint8_t alpha = 0xFF;
-    uint32_t offset = 200;
+    uint32_t off = 300;
 
-    // Rgb565_DrawLine(&g, Color(0xFF, 255, 0, 0), 40, offset, offset, 100, offset);
-    // Rgb565_DrawLine(&g, Color(alpha, 0, 255, 0), 40, offset, offset, offset, 100);
+    // Rgb565_DrawLine(&g, Color(alpha, 0, 255, 0), 100, off, off, off + 10, off + 100);
 
-    Rgb565_DrawLine(&g, Color(alpha, 0, 255, 0), 40, 100 + offset, offset, offset, -25 + offset);
+    // Rgb565_FillRect(&g, Color(alpha, 0, 255, 0), 10, 10, 100, 200);
 
-    WriteScreen(buff, 0, 0, 400, 400);
+    Rgb565_FillEllipse(&g, Color(alpha, 0, 255, 0), 10, 10, 100, 50);
+
+    WriteScreen(buff, 0, 0, w, h);
 
     getch();
     closegraph();

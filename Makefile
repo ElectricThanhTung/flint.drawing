@@ -29,10 +29,14 @@ LDFLAGS         :=
 #####################################################################################################################
 INCLUDES      	:=  $(OBJECT_DIR)                                                                                   \
 					Graphics																						\
-					Draw/Inc																						\
-                    User/Inc
+                    User/Inc																						\
+					Draw/Common/Inc																					\
+					Draw/Rgb565/Inc
 
-SOURCES       	:=  Draw/Src/flint_rgb565_drawing.cpp																\
+SOURCES       	:=  Draw/Rgb565/Src/flint_rgb565_common.cpp															\
+					Draw/Rgb565/Src/flint_rgb565_sw_line.cpp													    \
+					Draw/Rgb565/Src/flint_rgb565_sw_rect.cpp														\
+					Draw/Rgb565/Src/flint_rgb565_sw_ellipse.cpp														\
 					User/Src/main.cpp
 
 
