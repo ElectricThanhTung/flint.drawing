@@ -11,19 +11,19 @@ static uint64_t ISqrt(uint64_t x) {
     do {
         g = ret;
         ret = (g + x / g) >> 1;
-    } while(ret != g);
+    } while((ret >> 1) != (g >> 1));
     return ret;
 }
 
-static void Rgb565_SetFillEllipse(FGfx *g, uint32_t color, int32_t x, int32_t y, uint32_t w, uint32_t h) {
+static void Rgb565_SetFillEllipse(Gfx *g, uint32_t color, int32_t x, int32_t y, uint32_t w, uint32_t h) {
     uint32_t fg = __builtin_bswap16(color);
     fg = (fg | (fg << 16)) & 0x07E0F81F;
 
     int32_t cx = x + w / 2;
     int32_t cy = y + h / 2;
 
-    uint64_t ww4 = 4ull * w * w;
-    uint64_t hh4 = 4ull * h * h;
+    uint64_t ww4 = ((uint64_t)w * w) << 2;
+    uint64_t hh4 = ((uint64_t)h * h) << 2;
     uint64_t wh2 = (uint64_t)w * w * h * h;
 
     if(IN_Y_CLIP(g, cy)) {
@@ -88,7 +88,7 @@ static void Rgb565_SetFillEllipse(FGfx *g, uint32_t color, int32_t x, int32_t y,
     }
 }
 
-static void Rgb565_BlendFillEllipse(FGfx *g, uint32_t color, int32_t x, int32_t y, uint32_t w, uint32_t h) {
+static void Rgb565_BlendFillEllipse(Gfx *g, uint32_t color, int32_t x, int32_t y, uint32_t w, uint32_t h) {
     uint8_t alpha = color >> 27;
     uint32_t fg = __builtin_bswap16(color);
     fg = (fg | (fg << 16)) & 0x07E0F81F;
@@ -96,8 +96,8 @@ static void Rgb565_BlendFillEllipse(FGfx *g, uint32_t color, int32_t x, int32_t 
     int32_t cx = x + w / 2;
     int32_t cy = y + h / 2;
 
-    uint64_t ww4 = 4ull * w * w;
-    uint64_t hh4 = 4ull * h * h;
+    uint64_t ww4 = ((uint64_t)w * w) << 2;
+    uint64_t hh4 = ((uint64_t)h * h) << 2;
     uint64_t wh2 = (uint64_t)w * w * h * h;
 
     if(IN_Y_CLIP(g, cy)) {
@@ -164,7 +164,7 @@ static void Rgb565_BlendFillEllipse(FGfx *g, uint32_t color, int32_t x, int32_t 
     }
 }
 
-void Rgb565_FillEllipse(FGfx *g, uint32_t color, int32_t x, int32_t y, uint32_t w, uint32_t h) {
+void Rgb565_FillEllipse(Gfx *g, uint32_t color, int32_t x, int32_t y, uint32_t w, uint32_t h) {
     uint8_t alpha = color >> 27;
     if(alpha == 0x1F)
         Rgb565_SetFillEllipse(g, color, x, y, w, h);

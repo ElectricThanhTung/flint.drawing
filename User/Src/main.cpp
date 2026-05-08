@@ -48,7 +48,7 @@ int main(void) {
 
     uint8_t *buff = new uint8_t[w * h * 2];
     memset(buff, 0, w * h * 2);
-    FGfx g;
+    Gfx g;
     g.w = w;
     g.h = h;
     g.clipX1 = 0;
@@ -64,7 +64,7 @@ int main(void) {
 
     // Rgb565_FillRect(&g, Color(alpha, 0, 255, 0), 10, 10, 100, 200);
 
-    Rgb565_FillEllipse(&g, Color(alpha, 0, 255, 0), 10, 10, 100, 50);
+    Rgb565_FillEllipse(&g, Color(alpha, 0, 255, 0), 10, 10, 100, 400);
 
     WriteScreen(buff, 0, 0, w, h);
 

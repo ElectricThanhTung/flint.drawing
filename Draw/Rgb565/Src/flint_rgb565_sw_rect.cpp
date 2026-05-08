@@ -1,11 +1,10 @@
 
-#include "flint_rgb565_draw_line.h"
 #include "flint_rgb565_draw_rect.h"
 
-static void Rgb565_DrawHLine(FGfx *g, uint32_t thickness, uint32_t color, int32_t x1, int32_t x2, int32_t y) {
+static void Rgb565_DrawHLine(Gfx *g, uint32_t thickness, uint32_t color, int32_t x1, int32_t x2, int32_t y) {
     x1 = F_X1(g, x1);
     x2 = F_X2(g, x2);
-    uint8_t alpha = color >> 28;
+    uint8_t alpha = color >> 27;
     if(thickness > 1) {
         int32_t half = (thickness - 1) >> 1;
         int32_t y1 = F_Y1(g, y - half);
@@ -32,10 +31,10 @@ static void Rgb565_DrawHLine(FGfx *g, uint32_t thickness, uint32_t color, int32_
     }
 }
 
-static void Rgb565_DrawVLine(FGfx *g, uint32_t thickness, uint32_t color, int32_t y1, int32_t y2, int32_t x) {
+static void Rgb565_DrawVLine(Gfx *g, uint32_t thickness, uint32_t color, int32_t y1, int32_t y2, int32_t x) {
     y1 = F_Y1(g, y1);
     y2 = F_Y2(g, y2);
-    uint8_t alpha = color >> 28;
+    uint8_t alpha = color >> 27;
     if(thickness > 1) {
         int32_t half = (thickness - 1) >> 1;
         int32_t x1 = F_X1(g, x - half);
@@ -62,7 +61,7 @@ static void Rgb565_DrawVLine(FGfx *g, uint32_t thickness, uint32_t color, int32_
     }
 }
 
-void Rgb565_DrawRect(FGfx *g, uint32_t color, uint32_t thickness, int32_t x, int32_t y, int32_t w, int32_t h) {
+void Rgb565_DrawRect(Gfx *g, uint32_t color, uint32_t thickness, int32_t x, int32_t y, int32_t w, int32_t h) {
     int32_t half = (thickness - 1) >> 1;
 
     int32_t x1 = x;
@@ -94,7 +93,7 @@ void Rgb565_DrawRect(FGfx *g, uint32_t color, uint32_t thickness, int32_t x, int
     Rgb565_DrawVLine(g, thickness, color, y1 + half + 1, y2 - half - 1, x2);
 }
 
-void Rgb565_FillRect(FGfx *g, uint32_t color, int32_t x, int32_t y, int32_t w, int32_t h) {
+void Rgb565_FillRect(Gfx *g, uint32_t color, int32_t x, int32_t y, int32_t w, int32_t h) {
     int32_t x1 = F_X1(g, x);
     int32_t x2 = F_X2(g, x + w);
     int32_t y1 = F_Y1(g, y);

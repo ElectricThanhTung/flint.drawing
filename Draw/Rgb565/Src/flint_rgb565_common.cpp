@@ -1,7 +1,7 @@
 
 #include "flint_rgb565_common.h"
 
-void Rgb565_Fill(FGfx *g, uint32_t color, int32_t x1, uint32_t y1, int32_t x2, int32_t y2) {
+void Rgb565_Fill(Gfx *g, uint32_t color, int32_t x1, uint32_t y1, int32_t x2, int32_t y2) {
     uint8_t alpha = color >> 27;
     if(alpha == 0x1F) {
         uint16_t c = color;

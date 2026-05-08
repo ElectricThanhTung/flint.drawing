@@ -4,14 +4,12 @@
 #include "flint_rgb565_common.h"
 #include "flint_rgb565_draw_line.h"
 
-#if FLINT_API_DRAW_ENABLED
-
 typedef struct {
     int32_t x;
     int32_t y;
 } Point;
 
-static void Rgb565_DrawHLine(FGfx *g, uint32_t color, uint32_t thickness, int32_t x1, int32_t x2, int32_t y) {
+static void Rgb565_DrawHLine(Gfx *g, uint32_t color, uint32_t thickness, int32_t x1, int32_t x2, int32_t y) {
     if(x1 > x2) F_SWAP(x1, x2);
     int32_t half = (thickness - 1) >> 1;
     int32_t xmin = F_X1(g, x1);
@@ -47,7 +45,7 @@ static void Rgb565_DrawHLine(FGfx *g, uint32_t color, uint32_t thickness, int32_
     Rgb565_Fill(g, color, xmin, ymin, xmax, ymax);
 }
 
-static void Rgb565_DrawVLine(FGfx *g, uint32_t color, uint32_t thickness, int32_t y1, int32_t y2, int32_t x) {
+static void Rgb565_DrawVLine(Gfx *g, uint32_t color, uint32_t thickness, int32_t y1, int32_t y2, int32_t x) {
     if(y1 > y2) F_SWAP(y1, y2);
     int32_t half = (thickness - 1) >> 1;
     int32_t ymin = F_Y1(g, y1);
@@ -84,7 +82,7 @@ static void Rgb565_DrawVLine(FGfx *g, uint32_t color, uint32_t thickness, int32_
 }
 
 static void CalcRectPoints(uint32_t width, int32_t x1, int32_t y1, int32_t x2, int32_t y2, Point *points) {
-    static const uint8_t w[] = {
+    static const uint8_t wratio[] = {
         255, 251, 247, 244, 240, 237, 234, 231, 228, 225, 222, 220, 217, 215, 212, 210,
         208, 206, 203, 201, 199, 198, 196, 194, 192, 190, 189, 187, 186, 184, 182, 181,
         180, 178, 177, 176, 174, 173, 172, 170, 169, 168, 167, 166, 165, 164, 163, 162,
@@ -96,11 +94,11 @@ static void CalcRectPoints(uint32_t width, int32_t x1, int32_t y1, int32_t x2, i
     int32_t wx, wy;
 
     if(dx > dy) {
-        wy = (width * w[(dy << 6) / dx] + 127) >> 8;
+        wy = (width * wratio[(dy << 6) / dx] + 127) >> 8;
         wx = (wy * dy + dx / 2) / dx;
     }
     else {
-        wx = (width * w[(dx << 6) / dy] + 127) >> 8;
+        wx = (width * wratio[(dx << 6) / dy] + 127) >> 8;
         wy = (wx * dx + dy / 2) / dy;
     }
     if(x1 > x2) {
@@ -127,7 +125,7 @@ static void CalcRectPoints(uint32_t width, int32_t x1, int32_t y1, int32_t x2, i
     }
 }
 
-static void Rgb565_DrawSkewLine(FGfx *g, uint32_t color, uint32_t thickness, int32_t x1, int32_t y1, int32_t x2, int32_t y2) {
+static void Rgb565_DrawSkewLine(Gfx *g, uint32_t color, uint32_t thickness, int32_t x1, int32_t y1, int32_t x2, int32_t y2) {
     uint8_t alpha = color >> 27;
     uint32_t fg = __builtin_bswap16(color);
     fg = (fg | (fg << 16)) & 0x07E0F81F;
@@ -297,7 +295,7 @@ static void Rgb565_DrawSkewLine(FGfx *g, uint32_t color, uint32_t thickness, int
     }
 }
 
-void Rgb565_DrawLine(FGfx *g, uint32_t color, uint32_t thickness, int32_t x1, int32_t y1, int32_t x2, int32_t y2) {
+void Rgb565_DrawLine(Gfx *g, uint32_t color, uint32_t thickness, int32_t x1, int32_t y1, int32_t x2, int32_t y2) {
     if(x1 == x2 && y1 == y2)
         return;
     else if(y1 == y2)
@@ -307,5 +305,3 @@ void Rgb565_DrawLine(FGfx *g, uint32_t color, uint32_t thickness, int32_t x1, in
     else
         Rgb565_DrawSkewLine(g, color, thickness, x1, y1, x2, y2);
 }
-
-#endif /* FLINT_API_DRAW_ENABLED */
