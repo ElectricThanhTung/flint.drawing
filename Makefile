@@ -33,10 +33,9 @@ INCLUDES      	:=  $(OBJECT_DIR)                                                
 					Draw/Common/Inc																					\
 					Draw/Rgb565/Inc
 
-SOURCES       	:=  Draw/Rgb565/Src/flint_rgb565_common.cpp															\
-					Draw/Rgb565/Src/flint_rgb565_sw_line.cpp													    \
-					Draw/Rgb565/Src/flint_rgb565_sw_rect.cpp														\
-					Draw/Rgb565/Src/flint_rgb565_sw_ellipse.cpp														\
+SOURCES       	:=  Draw/Common/Src/flint_font.cpp																	\
+					Draw/Rgb565/Src/flint_rgb565_sw_gfx.cpp															\
+					Draw/Rgb565/Src/flint_rgb565_sw_gfx_helper.cpp													\
 					User/Src/main.cpp
 
 
