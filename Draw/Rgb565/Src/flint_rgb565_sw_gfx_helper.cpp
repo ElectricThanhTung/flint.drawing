@@ -13,10 +13,10 @@
 
 void Rgb565GfxHelper::clear(uint16_t color) {
     if(color == 0)
-        memset(data, 0, w * h * 2);
+        memset(data, 0, width * height * 2);
     else {
         uint16_t *p = (uint16_t *)data;
-        uint16_t *end = &p[w * h];
+        uint16_t *end = &p[width * height];
         for(; p < end; p++) *p = color;
     }
 }
@@ -25,7 +25,7 @@ void Rgb565GfxHelper::blendPixel(uint8_t alpha, uint16_t color, int32_t x, int32
     if(clipX1 <= x && x <= clipX2 && clipY1 <= y && y <= clipY2) {
         uint32_t fg = __builtin_bswap16(color);
         fg = (fg | (fg << 16)) & 0x07E0F81F;
-        uint16_t *p = &((uint16_t *)data)[y * w + x];
+        uint16_t *p = &((uint16_t *)data)[y * width + x];
         BLEND(p, alpha, fg);
     }
 }
@@ -36,8 +36,8 @@ void Rgb565GfxHelper::blendHLine(uint8_t alpha, uint16_t color, int32_t x1, int3
         x2 = GFX_MIN(clipX2, x2);
         if(x1 > x2) return;
 
-        uint16_t *p = &((uint16_t *)data)[y * w + x1];
-        uint16_t *end = &((uint16_t *)data)[y * w + x2];
+        uint16_t *p = &((uint16_t *)data)[y * width + x1];
+        uint16_t *end = &((uint16_t *)data)[y * width + x2];
         if(alpha == 0x1F)
             for(; p <= end; p++) *p = color;
         else {
@@ -54,19 +54,19 @@ void Rgb565GfxHelper::blendVLine(uint8_t alpha, uint16_t color, int32_t y1, int3
         y2 = GFX_MIN(clipY2, y2);
         if(y1 > y2) return;
 
-        uint16_t *p = &((uint16_t *)data)[y1 * w + x];
-        uint16_t *end = &((uint16_t *)data)[y2 * w + x];
+        uint16_t *p = &((uint16_t *)data)[y1 * width + x];
+        uint16_t *end = &((uint16_t *)data)[y2 * width + x];
         if(alpha == 0x1F)
-            for(; p <= end; p += w) *p = color;
+            for(; p <= end; p += width) *p = color;
         else {
             uint32_t fg = __builtin_bswap16(color);
             fg = (fg | (fg << 16)) & 0x07E0F81F;
-            for(; p <= end; p += w) BLEND(p, alpha, fg);
+            for(; p <= end; p += width) BLEND(p, alpha, fg);
         }
     }
 }
 
-void Rgb565GfxHelper::blendRect(uint8_t alpha, uint16_t color, int32_t x1, uint32_t y1, int32_t x2, int32_t y2) {
+void Rgb565GfxHelper::blendRect(uint8_t alpha, uint16_t color, int32_t x1, int32_t y1, int32_t x2, int32_t y2) {
     x1 = GFX_MAX(clipX1, x1);
     x2 = GFX_MIN(clipX2, x2);
     if(x1 > x2) return;
@@ -77,13 +77,13 @@ void Rgb565GfxHelper::blendRect(uint8_t alpha, uint16_t color, int32_t x1, uint3
 
     if(alpha == 0x1F) {
         if(x1 == x2) {
-            uint16_t *p = &((uint16_t *)data)[y1 * w + x1];
-            uint16_t *end = &((uint16_t *)data)[y2 * w + x1];
-            for(; p <= end; p += w) *p = color;
+            uint16_t *p = &((uint16_t *)data)[y1 * width + x1];
+            uint16_t *end = &((uint16_t *)data)[y2 * width + x1];
+            for(; p <= end; p += width) *p = color;
         }
         else for(int32_t y = y1; y <= y2; y++) {
-            uint16_t *p = &((uint16_t *)data)[y * w + x1];
-            uint16_t *end = &((uint16_t *)data)[y * w + x2];
+            uint16_t *p = &((uint16_t *)data)[y * width + x1];
+            uint16_t *end = &((uint16_t *)data)[y * width + x2];
             for(; p <= end; p++) *p = color;
         }
     }
@@ -91,13 +91,13 @@ void Rgb565GfxHelper::blendRect(uint8_t alpha, uint16_t color, int32_t x1, uint3
         uint32_t fg = __builtin_bswap16(color);
         fg = (fg | (fg << 16)) & 0x07E0F81F;
         if(x1 == x2) {
-            uint16_t *p = &((uint16_t *)data)[y1 * w + x1];
-            uint16_t *end = &((uint16_t *)data)[y2 * w + x1];
-            for(; p <= end; p += w) BLEND(p, alpha, fg);
+            uint16_t *p = &((uint16_t *)data)[y1 * width + x1];
+            uint16_t *end = &((uint16_t *)data)[y2 * width + x1];
+            for(; p <= end; p += width) BLEND(p, alpha, fg);
         }
         else for(int32_t y = y1; y <= y2; y++) {
-            uint16_t *p = &((uint16_t *)data)[y * w + x1];
-            uint16_t *end = &((uint16_t *)data)[y * w + x2];
+            uint16_t *p = &((uint16_t *)data)[y * width + x1];
+            uint16_t *end = &((uint16_t *)data)[y * width + x2];
             for(; p <= end; p++) BLEND(p, alpha, fg);
         }
     }

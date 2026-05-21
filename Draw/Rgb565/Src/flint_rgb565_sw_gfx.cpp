@@ -1,76 +1,27 @@
 
 #include <string.h>
 #include "flint_rgb565_gfx.h"
+#include "flint_fixed_point.h"
 #include "flint_rgb565_gfx_helper.h"
-
-static constexpr uint16_t fpmax = (1 << GFX_F_BITS);
-static constexpr uint16_t fphalf = (1 << (GFX_F_BITS - 1));
-static constexpr uint16_t fpmask = fpmax - 1;
 
 typedef struct {
     int32_t x;
     int32_t y;
 } Point;
 
-static uint64_t ISqrt(uint64_t x) {
-    uint64_t g, ret = 1ull << ((63 - __builtin_clzll(x)) >> 1);
-    do {
-        g = ret;
-        ret = (g + x / g) >> 1;
-    } while(GFX_ABS((int64_t)(ret - g)) > 1);
-    return ret;
-}
-
-static inline __attribute__((always_inline)) bool IsVisible(Rgb565GfxHelper *g, int32_t x, int32_t y, int32_t w, int32_t h) {
+static inline bool IsVisible(Rgb565Gfx *g, int32_t x, int32_t y, int32_t w, int32_t h) {
     if(x > g->clipX2 || (x + w) < g->clipX1) return false;
     if(y > g->clipY2 || (y + h) < g->clipY1) return false;
     return true;
 }
 
-static void FillCornerArc(Rgb565GfxHelper *g, uint32_t color, int32_t cx, int32_t cy, uint32_t r, uint8_t arc) {
-    if(arc == 0) { if(!IsVisible(g, cx - r, cy - r, r, r)) return; }
-    else if(arc == 1) { if(!IsVisible(g, cx, cy - r, r, r)) return; }
-    else if(arc == 2) { if(!IsVisible(g, cx, cy, r, r)) return; }
-    else if(!IsVisible(g, cx - r, cy, r, r)) return;
-    int32_t y = (arc < 2) ? GFX_MAX(0, cy - g->clipY2) : GFX_MAX(1, g->clipY1 - cy);
-    int32_t ymax = (arc < 2) ? (cy - g->clipY1) : (g->clipY2 - cy);
-    int64_t rr = (int64_t)r * r;
-    int32_t x = r;
-    uint8_t x0 = (arc == 0 || arc == 3) ? 0 : 1;
-    uint8_t alpha = color >> 27;
-    for(; y < x; y++) {
-        if(y > ymax) return;
-        int64_t fx = ISqrt((rr - (int64_t)y * y) << (GFX_F_BITS << 1));
-        uint8_t a = ((uint32_t)fx & fpmask) * alpha / fpmax;
-        x = (int32_t)(fx >> GFX_F_BITS);
-        int32_t py = (arc < 2) ? (cy - y) : (cy + y);
-        if(arc == 0 || arc == 3) {
-            g->blendHLine(alpha, color, cx - x, cx, py);
-            if(a > 0) g->blendPixel(a, color, cx - x - 1, py);
-        }
-        else {
-            g->blendHLine(alpha, color, cx + x0, cx + x, py);
-            if(a > 0) g->blendPixel(a, color, cx + x + 1, py);
-        }
-    }
-    x = (int32_t)(ISqrt((rr - (int64_t)y * y) << (GFX_F_BITS << 1)) >> GFX_F_BITS);
-    x = (arc == 0 || arc == 3) ? GFX_MIN(x, cx - g->clipX1) : GFX_MIN(x, g->clipX2 - cx);
-    x0 = (arc == 0 || arc == 3) ? GFX_MAX(x0, cx - g->clipX2) : GFX_MAX(x0, g->clipX1 - cx);
-    int32_t y0 = y;
-    for(; x >= x0; x--) {
-        int64_t fy = ISqrt((rr - (int64_t)x * x) << (GFX_F_BITS << 1));
-        uint8_t a = ((uint32_t)fy & fpmask) * alpha / fpmax;
-        y = (int32_t)(fy >> GFX_F_BITS);
-        int32_t px = (arc == 0 || arc == 3) ? (cx - x) : (cx + x);
-        if(arc < 2) {
-            g->blendVLine(alpha, color, cy - y, cy - y0, px);
-            if(a > 0) g->blendPixel(a, color, px, cy - y - 1);
-        }
-        else {
-            g->blendVLine(alpha, color, cy + y0, cy + y, px);
-            if(a > 0) g->blendPixel(a, color, px, cy + y + 1);
-        }
-    }
+Rgb565Gfx::Rgb565Gfx(int32_t w, int32_t h, int32_t clipX1, int32_t clipY1, int32_t clipX2, int32_t clipY2, uint8_t *data) :
+width(w), height(h), clipX1(clipX1), clipY1(clipY1), clipX2(clipX2), clipY2(clipY2), data(data) {
+
+}
+
+void Rgb565Gfx::clear(uint32_t color) {
+    ((Rgb565GfxHelper *)this)->clear(color);
 }
 
 static void CalcRectPoints(uint32_t width, int32_t x1, int32_t y1, int32_t x2, int32_t y2, Point *points) {
@@ -117,56 +68,17 @@ static void CalcRectPoints(uint32_t width, int32_t x1, int32_t y1, int32_t x2, i
     }
 }
 
-static void DrawChar(Rgb565GfxHelper *g, const CharInfo *c, uint32_t color, int32_t x, int32_t y) {
-    uint8_t width = c->getWidth();
-
-    int32_t cx0 = GFX_MAX(g->clipX1 - x, 0);
-    int32_t cxw = GFX_MIN(g->clipX2 - x + 1, width);
-    if(cx0 >= cxw) return;
-
-    uint8_t height = c->getHeight();
-    int8_t yOff = c->getYOffset();
-    uint8_t alpha = color >> 27;
-
-    if(alpha == 0x1F) {
-        for(int32_t cy = 0; cy < height; cy++) {
-            int32_t py = y + cy + yOff;
-            if(!(g->clipY1 <= y && y <= g->clipY2)) continue;
-            uint16_t *p = &((uint16_t *)g->data)[py * g->w + x];
-            for(int32_t cx = cx0; cx < cxw; cx++)
-                if(c->getPixel(cx, cy)) p[cx] = color;
-        }
-    }
-    else {
-        for(int32_t cy = 0; cy < height; cy++) {
-            int32_t py = y + cy + yOff;
-            if(!(g->clipY1 <= y && y <= g->clipY2)) continue;
-            for(int32_t cx = cx0; cx < cxw; cx++)
-                if(c->getPixel(cx, cy)) g->blendPixel(alpha, color, x + cx, py);
-        }
-    }
-}
-
-Rgb565Gfx::Rgb565Gfx(int32_t w, int32_t h, int32_t clipX1, int32_t clipY1, int32_t clipX2, int32_t clipY2, uint8_t *data) :
-w(w), h(h), clipX1(clipX1), clipY1(clipY1), clipX2(clipX2), clipY2(clipY2), data(data) {
-
-}
-
-void Rgb565Gfx::clear(uint32_t color) {
-    ((Rgb565GfxHelper *)this)->clear(color);
-}
-
-void Rgb565Gfx::drawLine(uint32_t color, uint32_t thickness, int32_t x1, int32_t y1, int32_t x2, int32_t y2) {
+void Rgb565Gfx::drawLine(uint32_t color, int32_t thk, int32_t x1, int32_t y1, int32_t x2, int32_t y2) {
     if(x1 == x2 && y1 == y2)
         return;
     uint8_t alpha = color >> 27;
     if(y1 == y2) {
         if(x1 > x2) GFX_SWAP(x1, x2);
-        int32_t half = (thickness - 1) >> 1;
+        int32_t half = (thk - 1) >> 1;
         y1 -= half;
         y2 += half;
 
-        if((thickness & 0x01) == 0) {
+        if((thk & 0x01) == 0) {
             uint32_t a1 = color >> 28;
             uint32_t a2 = color >> 29;
 
@@ -188,11 +100,11 @@ void Rgb565Gfx::drawLine(uint32_t color, uint32_t thickness, int32_t x1, int32_t
     }
     else if(x1 == x2) {
         if(y1 > y2) GFX_SWAP(y1, y2);
-        int32_t half = (thickness - 1) >> 1;
+        int32_t half = (thk - 1) >> 1;
         x1 -= half;
         x2 += half;
 
-        if((thickness & 0x01) == 0) {
+        if((thk & 0x01) == 0) {
             uint32_t a1 = color >> 28;
             uint32_t a2 = color >> 29;
 
@@ -213,7 +125,7 @@ void Rgb565Gfx::drawLine(uint32_t color, uint32_t thickness, int32_t x1, int32_t
         ((Rgb565GfxHelper *)this)->blendRect(alpha, color, x1, y1, x2, y2);
     }
     else {
-        if(thickness == 1) {
+        if(thk == 1) {
             int32_t err = 0;
             int32_t dx = GFX_ABS(x2 - x1);
             int32_t dy = GFX_ABS(y2 - y1);
@@ -255,8 +167,10 @@ void Rgb565Gfx::drawLine(uint32_t color, uint32_t thickness, int32_t x1, int32_t
             }
         }
         else {
+            static constexpr uint16_t fpmax = (1 << FP_PRECISION);
+            static constexpr uint16_t fpmask = fpmax - 1;
             Point p[4];
-            CalcRectPoints(thickness, x1, y1, x2, y2, p);
+            CalcRectPoints(thk, x1, y1, x2, y2, p);
 
             int32_t ymax = GFX_MIN(this->clipY2, GFX_MIN(p[0].y, p[2].y));
             int32_t y = GFX_MAX(this->clipY1, p[1].y);
@@ -270,21 +184,21 @@ void Rgb565Gfx::drawLine(uint32_t color, uint32_t thickness, int32_t x1, int32_t
 
             for(; y <= ymax; y++) {
                 int32_t x1 = (p[0].y - y) * dx1;
-                int32_t fx1 = fpmax - (((x1 << GFX_F_BITS) / dy1) & fpmask);
+                int32_t fx1 = fpmax - (((x1 << FP_PRECISION) / dy1) & fpmask);
                 x1 = p[0].x + x1 / dy1;
 
                 int32_t x2 = (y - p[1].y) * dx2 + dy2 - 1;
-                int32_t fx2 = ((x2 << GFX_F_BITS) / dy2) & fpmask;
+                int32_t fx2 = ((x2 << FP_PRECISION) / dy2) & fpmask;
                 x2 = p[1].x + x2 / dy2;
 
                 int16_t a = (dx1 < dy1) ? (fx1 * alpha / fpmax) : (alpha - astep1 + fx1 * dy1 / dx1 * alpha / fpmax);
-                for(uint32_t i = x1++; a > 0 && i >= p[0].x; i--) {
+                for(int32_t i = x1++; a > 0 && i >= p[0].x; i--) {
                     ((Rgb565GfxHelper *)this)->blendPixel(a, color, i, y);
                     a -= astep1;
                 }
 
                 a = (dx2 < dy2) ? (fx2 * alpha / fpmax) : (alpha - astep2 + fx2 * dy2 / dx2 * alpha / fpmax);
-                for(uint32_t i = x2--; a > 0 && i <= p[2].x; i++) {
+                for(int32_t i = x2--; a > 0 && i <= p[2].x; i++) {
                     ((Rgb565GfxHelper *)this)->blendPixel(a, color, i, y);
                     a -= astep2;
                 }
@@ -294,21 +208,21 @@ void Rgb565Gfx::drawLine(uint32_t color, uint32_t thickness, int32_t x1, int32_t
             ymax = GFX_MIN(this->clipY2, GFX_MAX(p[0].y, p[2].y));
             if(p[0].y < p[2].y) for(; y < ymax; y++) {
                 int32_t x1 = (y - p[0].y) * dx2;
-                int32_t fx1 = fpmax - (((x1 << GFX_F_BITS) / dy2) & fpmask);
+                int32_t fx1 = fpmax - (((x1 << FP_PRECISION) / dy2) & fpmask);
                 x1 = p[0].x + x1 / dy2;
 
                 int32_t x2 = (y - p[1].y) * dx2 + dy2 - 1;
-                int32_t fx2 = ((x2 << GFX_F_BITS) / dy2) & fpmask;
+                int32_t fx2 = ((x2 << FP_PRECISION) / dy2) & fpmask;
                 x2 = p[1].x + x2 / dy2;
 
                 int16_t a = (dx2 < dy2) ? (fx1 * alpha / fpmax) : (alpha - astep2 + fx1 * dy2 / dx2 * alpha / fpmax);
-                for(uint32_t i = x1++; a > 0 && i >= p[0].x; i--) {
+                for(int32_t i = x1++; a > 0 && i >= p[0].x; i--) {
                     ((Rgb565GfxHelper *)this)->blendPixel(a, color, i, y);
                     a -= astep2;
                 }
 
                 a = (dx2 < dy2) ? (fx2 * alpha / fpmax) : (alpha - astep2 + fx2 * dy2 / dx2 * alpha / fpmax);
-                for(uint32_t i = x2--; a > 0 && i <= p[2].x; i++) {
+                for(int32_t i = x2--; a > 0 && i <= p[2].x; i++) {
                     ((Rgb565GfxHelper *)this)->blendPixel(a, color, i, y);
                     a -= astep2;
                 }
@@ -317,21 +231,21 @@ void Rgb565Gfx::drawLine(uint32_t color, uint32_t thickness, int32_t x1, int32_t
             }
             else for(; y < ymax; y++) {
                 int32_t x1 = (p[0].y - y) * dx1;
-                int32_t fx1 = fpmax - (((x1 << GFX_F_BITS) / dy1) & fpmask);
+                int32_t fx1 = fpmax - (((x1 << FP_PRECISION) / dy1) & fpmask);
                 x1 = p[0].x + x1 / dy1;
 
                 int32_t x2 = (p[3].y - y) * dx1 + dy1 - 1;
-                int32_t fx2 = ((x2 << GFX_F_BITS) / dy1) & fpmask;
+                int32_t fx2 = ((x2 << FP_PRECISION) / dy1) & fpmask;
                 x2 = p[3].x + x2 / dy1;
 
                 int16_t a = (dx1 < dy1) ? (fx1 * alpha / fpmax) : (alpha - astep1 + fx1 * dy1 / dx1 * alpha / fpmax);
-                for(uint32_t i = x1++; a > 0 && i >= p[0].x; i--) {
+                for(int32_t i = x1++; a > 0 && i >= p[0].x; i--) {
                     ((Rgb565GfxHelper *)this)->blendPixel(a, color, i, y);
                     a -= astep1;
                 }
 
                 a = (dx1 < dy1) ? (fx2 * alpha / fpmax) : (alpha - astep1 + fx2 * dy1 / dx1 * alpha / fpmax);
-                for(uint32_t i = x2--; a > 0 && i <= p[2].x; i++) {
+                for(int32_t i = x2--; a > 0 && i <= p[2].x; i++) {
                     ((Rgb565GfxHelper *)this)->blendPixel(a, color, i, y);
                     a -= astep1;
                 }
@@ -341,21 +255,21 @@ void Rgb565Gfx::drawLine(uint32_t color, uint32_t thickness, int32_t x1, int32_t
             ymax = GFX_MIN(this->clipY2, p[3].y);
             for(; y <= ymax; y++) {
                 int32_t x1 = (y - p[0].y) * dx2;
-                int32_t fx1 = fpmax - (((x1 << GFX_F_BITS) / dy2) & fpmask);
+                int32_t fx1 = fpmax - (((x1 << FP_PRECISION) / dy2) & fpmask);
                 x1 = p[0].x + x1 / dy2;
 
                 int32_t x2 = (p[3].y - y) * dx1 + dy1 - 1;
-                int32_t fx2 = ((x2 << GFX_F_BITS) / dy1) & fpmask;
+                int32_t fx2 = ((x2 << FP_PRECISION) / dy1) & fpmask;
                 x2 = p[3].x + x2 / dy1;
 
                 int16_t a = (dx2 < dy2) ? (fx1 * alpha / fpmax) : (alpha - astep2 + fx1 * dy2 / dx2 * alpha / fpmax);
-                for(uint32_t i = x1++; a > 0 && i >= p[0].x; i--) {
+                for(int32_t i = x1++; a > 0 && i >= p[0].x; i--) {
                     ((Rgb565GfxHelper *)this)->blendPixel(a, color, i, y);
                     a -= astep2;
                 }
 
                 a = (dx1 < dy1) ? (fx2 * alpha / fpmax) : (alpha - astep1 + fx2 * dy1 / dx1 * alpha / fpmax);
-                for(uint32_t i = x2--; a > 0 && i <= p[2].x; i++) {
+                for(int32_t i = x2--; a > 0 && i <= p[2].x; i++) {
                     ((Rgb565GfxHelper *)this)->blendPixel(a, color, i, y);
                     a -= astep1;
                 }
@@ -366,9 +280,10 @@ void Rgb565Gfx::drawLine(uint32_t color, uint32_t thickness, int32_t x1, int32_t
     }
 }
 
-void Rgb565Gfx::drawRect(uint32_t color, uint32_t thickness, int32_t x, int32_t y, int32_t w, int32_t h) {
+void Rgb565Gfx::drawRect(uint32_t color, int32_t thk, int32_t x, int32_t y, int32_t w, int32_t h) {
+    if(!IsVisible(this, x - thk / 2, y - thk / 2, w + thk - (thk & 1), h + thk - (thk & 1))) return;
     uint8_t alpha = color >> 27;
-    int32_t half = (thickness - 1) >> 1;
+    int32_t half = (thk - 1) >> 1;
 
     int32_t xo1 = x - half;
     int32_t yo1 = y - half;
@@ -389,7 +304,7 @@ void Rgb565Gfx::drawRect(uint32_t color, uint32_t thickness, int32_t x, int32_t 
     ((Rgb565GfxHelper *)this)->blendRect(alpha, color, xo1, yi1, xi1, yi2);
     ((Rgb565GfxHelper *)this)->blendRect(alpha, color, xi2, yi1, xo2, yi2);
 
-    if((thickness & 0x01) == 0) {
+    if((thk & 0x01) == 0) {
         uint8_t a = color >> 28;
 
         xo1--;
@@ -415,8 +330,7 @@ void Rgb565Gfx::fillRect(uint32_t color, int32_t x, int32_t y, int32_t w, int32_
     ((Rgb565GfxHelper *)this)->blendRect(color >> 27, color, x, y, x + w, y + h);
 }
 
-
-static void RadiusAdjustment(int32_t w, int32_t h, uint32_t &r1, uint32_t &r2, uint32_t &r3, uint32_t &r4) {
+static void RadiusAdjustment(int32_t w, int32_t h, int32_t &r1, int32_t &r2, int32_t &r3, int32_t &r4) {
     uint8_t scale = 128;
     if(r1 + r2 > w) scale = (w << 7) / (r1 + r2);
     if(r3 + r4 > w) scale = GFX_MIN(scale, (w << 7) / (r3 + r4));
@@ -430,317 +344,796 @@ static void RadiusAdjustment(int32_t w, int32_t h, uint32_t &r1, uint32_t &r2, u
     }
 }
 
-void Rgb565Gfx::fillRoundRect(uint32_t color, int32_t x, int32_t y, int32_t w, int32_t h, uint32_t r1, uint32_t r2, uint32_t r3, uint32_t r4) {
-    if(!IsVisible((Rgb565GfxHelper *)this, x, y, w, h)) return;
+static void DrawEllipseHLine2(Rgb565Gfx *g, uint32_t color, FP cx, FP cy, FP xo, FP xi) {
+    FP pxo = cx - xo;
+    FP pxi = cx - xi;
+    int32_t py = cy;
+
+    uint8_t alpha = color >> 27;
+    uint8_t ao = alpha - pxo.fraction(alpha);
+    uint8_t ai = pxi.fraction(alpha);
+    ((Rgb565GfxHelper *)g)->blendHLine(alpha, color, (int32_t)pxo + 1, (int32_t)pxi - 1, py);
+    if(ao > 0) ((Rgb565GfxHelper *)g)->blendPixel(ao, color, pxo, py);
+    if(ai > 0) ((Rgb565GfxHelper *)g)->blendPixel(ai, color, pxi, py);
+
+    pxo = cx + xo;
+    pxi = cx + xi;
+    ao = pxo.fraction(alpha);
+    ai = alpha - pxi.fraction(alpha);
+    ((Rgb565GfxHelper *)g)->blendHLine(alpha, color, (int32_t)pxi + 1, (int32_t)pxo - 1, py);
+    if(ao > 0) ((Rgb565GfxHelper *)g)->blendPixel(ao, color, pxo, py);
+    if(ai > 0) ((Rgb565GfxHelper *)g)->blendPixel(ai, color, pxi, py);
+}
+
+static void DrawEllipseHLine41(Rgb565Gfx *g, uint32_t color, FP cx, FP cy, FP xo, FP xi, FP y) {
+    FP pxo = cx - xo;
+    FP pxi = cx - xi;
+    int32_t py1 = cy - y;
+    int32_t py2 = cy + y;
+
+    uint8_t alpha = color >> 27;
+    uint8_t ao = alpha - pxo.fraction(alpha);
+    uint8_t ai = pxi.fraction(alpha);
+    ((Rgb565GfxHelper *)g)->blendHLine(alpha, color, (int32_t)pxo + 1, (int32_t)pxi - 1, py1);
+    ((Rgb565GfxHelper *)g)->blendHLine(alpha, color, (int32_t)pxo + 1, (int32_t)pxi - 1, py2);
+    if(ao > 0) {
+        ((Rgb565GfxHelper *)g)->blendPixel(ao, color, pxo, py1);
+        ((Rgb565GfxHelper *)g)->blendPixel(ao, color, pxo, py2);
+    }
+    if(ai > 0) {
+        ((Rgb565GfxHelper *)g)->blendPixel(ai, color, pxi, py1);
+        ((Rgb565GfxHelper *)g)->blendPixel(ai, color, pxi, py2);
+    }
+
+    pxo = cx + xo;
+    pxi = cx + xi;
+    ao = pxo.fraction(alpha);
+    ai = alpha - pxi.fraction(alpha);
+    ((Rgb565GfxHelper *)g)->blendHLine(alpha, color, (int32_t)pxi + 1, (int32_t)pxo - 1, py1);
+    ((Rgb565GfxHelper *)g)->blendHLine(alpha, color, (int32_t)pxi + 1, (int32_t)pxo - 1, py2);
+    if(ao > 0) {
+        ((Rgb565GfxHelper *)g)->blendPixel(ao, color, pxo, py1);
+        ((Rgb565GfxHelper *)g)->blendPixel(ao, color, pxo, py2);
+    }
+    if(ai > 0) {
+        ((Rgb565GfxHelper *)g)->blendPixel(ai, color, pxi, py1);
+        ((Rgb565GfxHelper *)g)->blendPixel(ai, color, pxi, py2);
+    }
+}
+
+static void DrawEllipseHLine42(Rgb565Gfx *g, uint32_t color, FP cx, FP cy, FP xo, FP xi, FP y) {
+    FP pxo = cx - xo;
+    int32_t pxi = cx - xi;
+    int32_t py1 = cy - y;
+    int32_t py2 = cy + y;
+
+    uint8_t alpha = color >> 27;
+    uint8_t ao = alpha - pxo.fraction(alpha);
+    ((Rgb565GfxHelper *)g)->blendHLine(alpha, color, (int32_t)pxo + 1, pxi, py1);
+    ((Rgb565GfxHelper *)g)->blendHLine(alpha, color, (int32_t)pxo + 1, pxi, py2);
+    if(ao > 0) {
+        ((Rgb565GfxHelper *)g)->blendPixel(ao, color, pxo, py1);
+        ((Rgb565GfxHelper *)g)->blendPixel(ao, color, pxo, py2);
+    }
+
+    pxo = cx + xo;
+    pxi = cx + xi;
+    ao = pxo.fraction(alpha);
+    ((Rgb565GfxHelper *)g)->blendHLine(alpha, color, pxi, (int32_t)pxo - 1, py1);
+    ((Rgb565GfxHelper *)g)->blendHLine(alpha, color, pxi, (int32_t)pxo - 1, py2);
+    if(ao > 0) {
+        ((Rgb565GfxHelper *)g)->blendPixel(ao, color, pxo, py1);
+        ((Rgb565GfxHelper *)g)->blendPixel(ao, color, pxo, py2);
+    }
+}
+
+static void DrawEllipseVLine2(Rgb565Gfx *g, uint32_t color, int32_t cx, FP cy, FP yo, FP yi) {
+    FP pyo = cy - yo;
+    FP pyi = cy - yi;
+
+    uint8_t alpha = color >> 27;
+    uint8_t ao = alpha - pyo.fraction(alpha);
+    uint8_t ai = pyi.fraction(alpha);
+    ((Rgb565GfxHelper *)g)->blendVLine(alpha, color, (int32_t)pyo + 1, (int32_t)pyi - 1, cx);
+    if(ao > 0) ((Rgb565GfxHelper *)g)->blendPixel(ao, color, cx, pyo);
+    if(ai > 0) ((Rgb565GfxHelper *)g)->blendPixel(ai, color, cx, pyi);
+
+    pyo = cy + yo;
+    pyi = cy + yi;
+    ao = pyo.fraction(alpha);
+    ai = alpha - pyi.fraction(alpha);
+    ((Rgb565GfxHelper *)g)->blendVLine(alpha, color, (int32_t)pyi + 1, (int32_t)pyo - 1, cx);
+    if(ao > 0) ((Rgb565GfxHelper *)g)->blendPixel(ao, color, cx, pyo);
+    if(ai > 0) ((Rgb565GfxHelper *)g)->blendPixel(ai, color, cx, pyi);
+}
+
+static void DrawEllipseVLine41(Rgb565Gfx *g, uint32_t color, FP cx, FP cy, FP yo, FP yi, FP x) {
+    FP pyo = cy - yo;
+    FP pyi = cy - yi;
+    int32_t px1 = cx - x;
+    int32_t px2 = cx + x;
+
+    uint8_t alpha = color >> 27;
+    uint8_t ao = alpha - pyo.fraction(alpha);
+    uint8_t ai = pyi.fraction(alpha);
+    ((Rgb565GfxHelper *)g)->blendVLine(alpha, color, (int32_t)pyo + 1, (int32_t)pyi - 1, px1);
+    ((Rgb565GfxHelper *)g)->blendVLine(alpha, color, (int32_t)pyo + 1, (int32_t)pyi - 1, px2);
+    if(ao > 0) {
+        ((Rgb565GfxHelper *)g)->blendPixel(ao, color, px1, pyo);
+        ((Rgb565GfxHelper *)g)->blendPixel(ao, color, px2, pyo);
+    }
+    if(ai > 0) {
+        ((Rgb565GfxHelper *)g)->blendPixel(ai, color, px1, pyi);
+        ((Rgb565GfxHelper *)g)->blendPixel(ai, color, px2, pyi);
+    }
+
+    pyo = cy + yo;
+    pyi = cy + yi;
+    ao = pyo.fraction(alpha);
+    ai = alpha - pyi.fraction(alpha);
+    ((Rgb565GfxHelper *)g)->blendVLine(alpha, color, (int32_t)pyi + 1, (int32_t)pyo - 1, px1);
+    ((Rgb565GfxHelper *)g)->blendVLine(alpha, color, (int32_t)pyi + 1, (int32_t)pyo - 1, px2);
+    if(ao > 0) {
+        ((Rgb565GfxHelper *)g)->blendPixel(ao, color, px1, pyo);
+        ((Rgb565GfxHelper *)g)->blendPixel(ao, color, px2, pyo);
+    }
+    if(ai > 0) {
+        ((Rgb565GfxHelper *)g)->blendPixel(ai, color, px1, pyi);
+        ((Rgb565GfxHelper *)g)->blendPixel(ai, color, px2, pyi);
+    }
+}
+
+static void DrawEllipseVLine42(Rgb565Gfx *g, uint32_t color, FP cx, FP cy, FP yo, FP yi, FP x) {
+    FP pyo = cy - yo;
+    int32_t pyi = cy - yi;
+    int32_t px1 = cx - x;
+    int32_t px2 = cx + x;
+
+    uint8_t alpha = color >> 27;
+    uint8_t ao = alpha - pyo.fraction(alpha);
+    ((Rgb565GfxHelper *)g)->blendVLine(alpha, color, (int32_t)pyo + 1, pyi, px1);
+    ((Rgb565GfxHelper *)g)->blendVLine(alpha, color, (int32_t)pyo + 1, pyi, px2);
+    if(ao > 0 && (int32_t)pyo <= (int32_t)pyi) {
+        ((Rgb565GfxHelper *)g)->blendPixel(ao, color, px1, pyo);
+        ((Rgb565GfxHelper *)g)->blendPixel(ao, color, px2, pyo);
+    }
+
+    pyo = cy + yo;
+    pyi = cy + yi;
+    ao = pyo.fraction(alpha);
+    ((Rgb565GfxHelper *)g)->blendVLine(alpha, color, pyi, (int32_t)pyo - 1, px1);
+    ((Rgb565GfxHelper *)g)->blendVLine(alpha, color, pyi, (int32_t)pyo - 1, px2);
+    if(ao > 0 && (int32_t)pyo >= (int32_t)pyi) {
+        ((Rgb565GfxHelper *)g)->blendPixel(ao, color, px1, pyo);
+        ((Rgb565GfxHelper *)g)->blendPixel(ao, color, px2, pyo);
+    }
+}
+
+static void PlotH2(Rgb565Gfx *g, uint32_t color, FP cx, int32_t cy, FP x) {
+    uint8_t alpha = color >> 27;
+    FP px1 = cx - x;
+    FP px2 = cx + x;
+
+    uint8_t ai1 = px1.fraction(alpha);
+    uint8_t ao1 = alpha - ai1;
+
+    uint8_t ao2 = px2.fraction(alpha);
+    uint8_t ai2 = alpha - ao2;
+
+    ((Rgb565GfxHelper *)g)->blendPixel(ao1, color, px1, cy);
+    if(ao2 > 0) ((Rgb565GfxHelper *)g)->blendPixel(ao2, color, px2, cy);
+    ++px1;
+    --px2;
+    if(ai1 > 0) ((Rgb565GfxHelper *)g)->blendPixel(ai1, color, px1, cy);
+    ((Rgb565GfxHelper *)g)->blendPixel(ai2, color, px2, cy);
+}
+
+static void PlotH4(Rgb565Gfx *g, uint32_t color, FP cx, FP cy, FP x, FP y) {
+    uint8_t alpha = color >> 27;
+    FP px1 = cx - x;
+    FP px2 = cx + x;
+    int32_t py1 = cy - y;
+    int32_t py2 = cy + y;
+
+    uint8_t ai1 = px1.fraction(alpha);
+    uint8_t ao1 = alpha - ai1;
+
+    uint8_t ao2 = px2.fraction(alpha);
+    uint8_t ai2 = alpha - ao2;
+
+    ((Rgb565GfxHelper *)g)->blendPixel(ao1, color, px1, py1);
+    ((Rgb565GfxHelper *)g)->blendPixel(ao1, color, px1, py2);
+    if(ao2 > 0) {
+        ((Rgb565GfxHelper *)g)->blendPixel(ao2, color, px2, py1);
+        ((Rgb565GfxHelper *)g)->blendPixel(ao2, color, px2, py2);
+    }
+    ++px1;
+    --px2;
+    if(ai1 > 0) {
+        ((Rgb565GfxHelper *)g)->blendPixel(ai1, color, px1, py1);
+        ((Rgb565GfxHelper *)g)->blendPixel(ai1, color, px1, py2);
+    }
+    ((Rgb565GfxHelper *)g)->blendPixel(ai2, color, px2, py1);
+    ((Rgb565GfxHelper *)g)->blendPixel(ai2, color, px2, py2);
+}
+
+static void PlotV2(Rgb565Gfx *g, uint32_t color, int32_t cx, FP cy, FP y) {
+    uint8_t alpha = color >> 27;
+    FP py1 = cy - y;
+    FP py2 = cy + y;
+
+    uint8_t ai1 = py1.fraction(alpha);
+    uint8_t ao1 = alpha - ai1;
+
+    uint8_t ao2 = py2.fraction(alpha);
+    uint8_t ai2 = alpha - ao2;
+
+    ((Rgb565GfxHelper *)g)->blendPixel(ao1, color, cx, py1);
+    if(ao2 > 0) ((Rgb565GfxHelper *)g)->blendPixel(ao2, color, cx, py2);
+    ++py1;
+    --py2;
+    if(ai1 > 0) ((Rgb565GfxHelper *)g)->blendPixel(ai1, color, cx, py1);
+    ((Rgb565GfxHelper *)g)->blendPixel(ai2, color, cx, py2);
+}
+
+static void PlotV4(Rgb565Gfx *g, uint32_t color, FP cx, FP cy, FP x, FP y) {
+    uint8_t alpha = color >> 27;
+    int32_t px1 = cx - x;
+    int32_t px2 = cx + x;
+    FP py1 = cy - y;
+    FP py2 = cy + y;
+
+    uint8_t ai1 = py1.fraction(alpha);
+    uint8_t ao1 = alpha - ai1;
+
+    uint8_t ao2 = py2.fraction(alpha);
+    uint8_t ai2 = alpha - ao2;
+
+    ((Rgb565GfxHelper *)g)->blendPixel(ao1, color, px1, py1);
+    ((Rgb565GfxHelper *)g)->blendPixel(ao1, color, px2, py1);
+    if(ao2 > 0) {
+        ((Rgb565GfxHelper *)g)->blendPixel(ao2, color, px1, py2);
+        ((Rgb565GfxHelper *)g)->blendPixel(ao2, color, px2, py2);
+    }
+    ++py1;
+    --py2;
+    if(ai1 > 0) {
+        ((Rgb565GfxHelper *)g)->blendPixel(ai1, color, px1, py1);
+        ((Rgb565GfxHelper *)g)->blendPixel(ai1, color, px2, py1);
+    }
+    ((Rgb565GfxHelper *)g)->blendPixel(ai2, color, px1, py2);
+    ((Rgb565GfxHelper *)g)->blendPixel(ai2, color, px2, py2);
+}
+
+void Rgb565Gfx::drawCircle(uint32_t color, int32_t thk, int32_t x, int32_t y, uint32_t d) {
+    if(!IsVisible(this, x - thk / 2, y - thk / 2, d + thk - (thk & 1), d + thk - (thk & 1))) return;
+    d++;
+    FP cx = x + (FP)d / (int32_t)2;
+    FP cy = y + (FP)d / (int32_t)2;
+    if(thk > 1) {
+        FP xo, xi, yo, yi;
+        FP rro = square((FP)(d + thk) / (int32_t)2);
+        FP rri = square((FP)(d - thk) / (int32_t)2);
+
+        FP ymax = FP::absMax(cy - clipY1, clipY2 - cy);
+        if((cy - clipY2) > (int32_t)1) yo = (d & 1) ? floor(cy - clipY2) : (floor(cy - clipY2) - FP::HALF);
+        else if(clipY1 - cy > (int32_t)1) yo = (d & 1) ? floor(clipY1 - cy) : (floor(clipY1 - cy) - FP::HALF);
+        else yo = (d & 1) ? FP::ONE : FP::HALF;
+        if(d & 1) {
+            DrawEllipseHLine2(this, color, cx, cy, (FP)(d + thk) / (int32_t)2, (FP)(d - thk) / (int32_t)2);
+            DrawEllipseVLine2(this, color, cx, cy, (FP)(d + thk) / (int32_t)2, (FP)(d - thk) / (int32_t)2);
+        }
+        while(true) {
+            if(yo > ymax) return;
+            FP yy = square(yo);
+            xi = sqrt(rri - yy);
+            if(xi >= yo) {
+                xo = sqrt(rro - yy);
+                DrawEllipseHLine41(this, color, cx, cy, xo, xi, yo);
+            }
+            else break;
+            ++yo;
+        }
+
+        FP xi0 = (d & 1) ? (floor(xi) + (int32_t)1) : (floor(xi) + (int32_t)1 + FP::HALF);
+        while(true) {
+            if(yo > ymax) return;
+            xo = sqrt(rro - square(yo));
+            if(xo >= yo) DrawEllipseHLine42(this, color, cx, cy, xo, xi0, yo);
+            else break;
+            ++yo;
+        }
+
+        FP xo0 = (d & 1) ? floor(xo) : (floor(xo) + FP::HALF);
+        FP yo0 = yo;
+        FP xmax = GFX_MIN(xi0, GFX_MAX(cx - clipX1, clipX2 - cx));
+        if(cx - clipX2 > (int32_t)1) xo = (d & 1) ? floor(cx - clipX2) : (floor(cx - clipX2) - FP::HALF);
+        else if(clipX1 - cx > (int32_t)1) xo = (d & 1) ? floor(clipX1 - cx) : (floor(clipX1 - cx) - FP::HALF);
+        else xo = (d & 1) ? FP::ONE : FP::HALF;
+        for(; xo < xmax; ++xo) {
+            FP xx = square(xo);
+            yo = sqrt(rro - xx);
+            yi = sqrt(rri - xx);
+            DrawEllipseVLine41(this, color, cx, cy, yo, yi, xo);
+        }
+
+        xmax = GFX_MIN(xo0, GFX_MAX(cx - clipX1, clipX2 - cx));
+        for(; xo <= xmax; ++xo) {
+            yo = sqrt(rro - square(xo));
+            DrawEllipseVLine42(this, color, cx, cy, yo, yo0, xo);
+        }
+    }
+    else {
+        FP rr = square((FP)d / (int32_t)2);
+        FP yo, xo;
+        FP ymax = FP::absMax(cy - clipY1, clipY2 - cy);
+        if((cy - clipY2) > (int32_t)1) yo = (d & 1) ? floor(cy - clipY2) : (floor(cy - clipY2) - FP::HALF);
+        else if(clipY1 - cy > (int32_t)1) yo = (d & 1) ? floor(clipY1 - cy) : (floor(clipY1 - cy) - FP::HALF);
+        else yo = (d & 1) ? FP::ONE : FP::HALF;
+        if(d & 1) {
+            PlotH2(this, color, cx, cy, (FP)d / (int32_t)2);
+            PlotV2(this, color, cx, cy, (FP)d / (int32_t)2);
+        }
+        while(true) {
+            if(yo > ymax) return;
+            xo = sqrt(rr - square(yo));
+            if(xo >= yo) PlotH4(this, color, cx, cy, xo, yo);
+            else break;
+            ++yo;
+        }
+
+        FP xmax = GFX_MIN(xo, GFX_MAX(cx - clipX1, clipX2 - cx));
+        if(cx - clipX2 > (int32_t)1) xo = (d & 1) ? floor(cx - clipX2) : (floor(cx - clipX2) - FP::HALF);
+        else if(clipX1 - cx > (int32_t)1) xo = (d & 1) ? floor(clipX1 - cx) : (floor(clipX1 - cx) - FP::HALF);
+        else xo = (d & 1) ? FP::ONE : FP::HALF;
+        for(; xo < xmax; ++xo) {
+            yo = sqrt(rr - square(xo));
+            PlotV4(this, color, cx, cy, xo, yo);
+        }
+    }
+}
+
+void Rgb565Gfx::drawEllipse(uint32_t color, int32_t thk, int32_t x, int32_t y, uint32_t w, uint32_t h) {
+    if(w == h) return drawCircle(color, thk, x, y, w);
+    if(!IsVisible(this, x - thk / 2, y - thk / 2, w + thk - (thk & 1), h + thk - (thk & 1))) return;
+    w++;
+    h++;
+    FP cx = x + (FP)w / (int32_t)2;
+    FP cy = y + (FP)h / (int32_t)2;
+    if(thk > 1) {
+        FP xo, xi, yo, yi;
+
+        FP aao = square((FP)(w + thk) / (int32_t)2);
+        FP bbo = square((FP)(h + thk) / (int32_t)2);
+        FP abo = aao * bbo;
+
+        FP aai = square((FP)(w - thk) / (int32_t)2);
+        FP bbi = square((FP)(h - thk) / (int32_t)2);
+        FP abi = aai * bbi;
+
+        FP ymax = FP::absMax(cy - clipY1, clipY2 - cy);
+        if((cy - clipY2) > (int32_t)1) yo = (h & 1) ? floor(cy - clipY2) : (floor(cy - clipY2) - FP::HALF);
+        else if(clipY1 - cy > (int32_t)1) yo = (h & 1) ? floor(clipY1 - cy) : (floor(clipY1 - cy) - FP::HALF);
+        else yo = (h & 1) ? FP::ONE : FP::HALF;
+        if(h & 1) DrawEllipseHLine2(this, color, cx, cy, (FP)(w + thk) / (int32_t)2, (FP)(w - thk) / (int32_t)2);
+        if(w & 1) DrawEllipseVLine2(this, color, cx, cy, (FP)(h + thk) / (int32_t)2, (FP)(h - thk) / (int32_t)2);
+        while(true) {
+            if(yo > ymax) return;
+            FP yy = square(yo);
+            xi = sqrt((abi - aai * yy) / bbi);
+            if(bbi * xi >= aai * yo) {
+                xo = sqrt((abo - aao * yy) / bbo);
+                DrawEllipseHLine41(this, color, cx, cy, xo, xi, yo);
+            }
+            else break;
+            ++yo;
+        }
+
+        FP xi0 = (w & 1) ? (floor(xi) + (int32_t)1) : (floor(xi) + (int32_t)1 + FP::HALF);
+        while(true) {
+            if(yo > ymax) return;
+            xo = sqrt((abo - aao * square(yo)) / bbo);
+            if(bbo * xo >= aao * yo) DrawEllipseHLine42(this, color, cx, cy, xo, xi0, yo);
+            else break;
+            ++yo;
+        }
+
+        FP xo0 = (w & 1) ? floor(xo) : (floor(xo) + FP::HALF);
+        FP yo0 = yo;
+        FP xmax = GFX_MIN(xi0, GFX_MAX(cx - clipX1, clipX2 - cx));
+        if(cx - clipX2 > (int32_t)1) xo = (w & 1) ? floor(cx - clipX2) : (floor(cx - clipX2) - FP::HALF);
+        else if(clipX1 - cx > (int32_t)1) xo = (w & 1) ? floor(clipX1 - cx) : (floor(clipX1 - cx) - FP::HALF);
+        else xo = (w & 1) ? FP::ONE : FP::HALF;
+        for(; xo < xmax; ++xo) {
+            FP xx = square(xo);
+            yo = sqrt((abo - bbo * xx) / aao);
+            yi = sqrt((abi - bbi * xx) / aai);
+            DrawEllipseVLine41(this, color, cx, cy, yo, yi, xo);
+        }
+
+        xmax = GFX_MIN(xo0, GFX_MAX(cx - clipX1, clipX2 - cx));
+        for(; xo <= xmax; ++xo) {
+            yo = sqrt((abo - bbo * square(xo)) / aao);
+            DrawEllipseVLine42(this, color, cx, cy, yo, yo0, xo);
+        }
+    }
+    else {
+        FP aa = square((FP)w / (int32_t)2);
+        FP bb = square((FP)h / (int32_t)2);
+        FP ab = aa * bb;
+
+        FP yo, xo;
+        FP ymax = FP::absMax(cy - clipY1, clipY2 - cy);
+        if((cy - clipY2) > (int32_t)1) yo = (h & 1) ? floor(cy - clipY2) : (floor(cy - clipY2) - FP::HALF);
+        else if(clipY1 - cy > (int32_t)1) yo = (h & 1) ? floor(clipY1 - cy) : (floor(clipY1 - cy) - FP::HALF);
+        else yo = (h & 1) ? FP::ONE : FP::HALF;
+        if(h & 1) PlotH2(this, color, cx, cy, (FP)w / (int32_t)2);
+        if(w & 1) PlotV2(this, color, cx, cy, (FP)h / (int32_t)2);
+        while(true) {
+            if(yo > ymax) return;
+            xo = sqrt((ab - aa * square(yo)) / bb);
+            if(bb * xo >= aa * yo) PlotH4(this, color, cx, cy, xo, yo);
+            else break;
+            ++yo;
+        }
+
+        FP xmax = GFX_MIN(xo, GFX_MAX(cx - clipX1, clipX2 - cx));
+        if(cx - clipX2 > (int32_t)1) xo = (w & 1) ? floor(cx - clipX2) : (floor(cx - clipX2) - FP::HALF);
+        else if(clipX1 - cx > (int32_t)1) xo = (w & 1) ? floor(clipX1 - cx) : (floor(clipX1 - cx) - FP::HALF);
+        else xo = (w & 1) ? FP::ONE : FP::HALF;
+        for(; xo < xmax; ++xo) {
+            yo = sqrt((ab - bb * square(xo)) / aa);
+            PlotV4(this, color, cx, cy, xo, yo);
+        }
+    }
+}
+
+static void DrawHLineAA(Rgb565Gfx *g, uint32_t color, FP x1, FP x2, int32_t y) {
+    uint8_t alpha = color >> 27;
+    uint8_t a1 = alpha - x1.fraction(alpha);
+    uint8_t a2 = x2.fraction(alpha);
+    int32_t px1 = x1;
+    int32_t px2 = x2;
+    ((Rgb565GfxHelper *)g)->blendHLine(alpha, color, px1 + 1, px2 - 1, y);
+    if(a1 > 0) ((Rgb565GfxHelper *)g)->blendPixel(a1, color, px1, y);
+    if(a2 > 0) ((Rgb565GfxHelper *)g)->blendPixel(a2, color, px2, y);
+}
+
+static void DrawHLineAA(Rgb565Gfx *g, uint32_t color, FP x1, int32_t x2, int32_t y) {
+    int32_t px1 = x1;
+    uint8_t alpha = color >> 27;
+    uint8_t a1 = alpha - x1.fraction(alpha);
+    ((Rgb565GfxHelper *)g)->blendHLine(alpha, color, px1 + 1, x2, y);
+    if(a1 > 0) ((Rgb565GfxHelper *)g)->blendPixel(a1, color, px1, y);
+}
+
+static void DrawHLineAA(Rgb565Gfx *g, uint32_t color, int32_t x1, FP x2, int32_t y) {
+    int32_t px2 = x2;
+    uint8_t alpha = color >> 27;
+    uint8_t a2 = x2.fraction(alpha);
+    ((Rgb565GfxHelper *)g)->blendHLine(alpha, color, x1, px2 - 1, y);
+    if(a2 > 0) ((Rgb565GfxHelper *)g)->blendPixel(a2, color, px2, y);
+}
+
+static void DrawVLineAA(Rgb565Gfx *g, uint32_t color, FP y1, FP y2, int32_t x) {
+    uint8_t alpha = color >> 27;
+    uint8_t a1 = alpha - y1.fraction(alpha);
+    uint8_t a2 = y2.fraction(alpha);
+    int32_t py1 = y1;
+    int32_t py2 = y2;
+    ((Rgb565GfxHelper *)g)->blendVLine(alpha, color, py1 + 1, py2 - 1, x);
+    if(a1 > 0) ((Rgb565GfxHelper *)g)->blendPixel(a1, color, x, py1);
+    if(a2 > 0) ((Rgb565GfxHelper *)g)->blendPixel(a2, color, x, py2);
+}
+
+static void DrawVLineAA(Rgb565Gfx *g, uint32_t color, FP y1, int32_t y2, int32_t x) {
+    uint8_t alpha = color >> 27;
+    uint8_t a1 = alpha - y1.fraction(alpha);
+    int32_t py = y1;
+    ((Rgb565GfxHelper *)g)->blendVLine(alpha, color, py + 1, y2, x);
+    if(a1 > 0) ((Rgb565GfxHelper *)g)->blendPixel(a1, color, x, py);
+}
+
+static void DrawVLineAA(Rgb565Gfx *g, uint32_t color, int32_t y1, FP y2, int32_t x) {
+    uint8_t alpha = color >> 27;
+    uint8_t a2 = y2.fraction(alpha);
+    int32_t py = y2;
+    ((Rgb565GfxHelper *)g)->blendVLine(alpha, color, y1, py - 1, x);
+    if(a2 > 0) ((Rgb565GfxHelper *)g)->blendPixel(a2, color, x, py);
+}
+
+static void FillEllipseHLine2(Rgb565Gfx *g, uint32_t color, FP cx, FP cy, FP x, FP y) {
+    FP fx1 = cx - x;
+    FP fx2 = cx + x;
+    int32_t px1 = fx1;
+    int32_t px2 = fx2;
+    int32_t py1 = cy - y;
+    int32_t py2 = cy + y;
+
+    uint8_t alpha = color >> 27;
+    uint8_t a1 = alpha - fx1.fraction(alpha);
+    uint8_t a2 = fx2.fraction(alpha);
+
+    ((Rgb565GfxHelper *)g)->blendHLine(alpha, color, px1 + 1, px2 - 1, py1);
+    if(a1 > 0) ((Rgb565GfxHelper *)g)->blendPixel(a1, color, px1, py1);
+    if(a2 > 0) ((Rgb565GfxHelper *)g)->blendPixel(a2, color, px2, py1);
+
+    ((Rgb565GfxHelper *)g)->blendHLine(alpha, color, px1 + 1, px2 - 1, py2);
+    if(a1 > 0) ((Rgb565GfxHelper *)g)->blendPixel(a1, color, px1, py2);
+    if(a2 > 0) ((Rgb565GfxHelper *)g)->blendPixel(a2, color, px2, py2);
+}
+
+static void FillEllipseVLine2(Rgb565Gfx *g, uint32_t color, int32_t cx, FP cy, FP yo, FP yi) {
+    uint8_t alpha = color >> 27;
+
+    FP fyo = cy - yo;
+    int32_t pyo = fyo;
+    int32_t pyi = cy - yi;
+    uint8_t ao = alpha - fyo.fraction(alpha);
+    ((Rgb565GfxHelper *)g)->blendVLine(alpha, color, pyo + 1, pyi, cx);
+    if(ao > 0) ((Rgb565GfxHelper *)g)->blendPixel(ao, color, cx, pyo);
+
+    fyo = cy + yo;
+    pyo = fyo;
+    pyi = cy + yi;
+    ao = fyo.fraction(alpha);
+    ((Rgb565GfxHelper *)g)->blendVLine(alpha, color, pyi, pyo - 1, cx);
+    if(ao > 0) ((Rgb565GfxHelper *)g)->blendPixel(ao, color, cx, pyo);
+}
+
+static void FillEllipseVLine4(Rgb565Gfx *g, uint32_t color, FP cx, FP cy, FP yo, FP yi, FP x) {
+    uint8_t alpha = color >> 27;
+    int32_t px1 = cx - x;
+    int32_t px2 = cx + x;
+
+    FP fyo = cy - yo;
+    int32_t pyo = fyo;
+    int32_t pyi = cy - yi;
+    uint8_t ao = alpha - fyo.fraction(alpha);
+    ((Rgb565GfxHelper *)g)->blendVLine(alpha, color, pyo + 1, pyi, px1);
+    ((Rgb565GfxHelper *)g)->blendVLine(alpha, color, pyo + 1, pyi, px2);
+    if(ao > 0) {
+        ((Rgb565GfxHelper *)g)->blendPixel(ao, color, px1, pyo);
+        ((Rgb565GfxHelper *)g)->blendPixel(ao, color, px2, pyo);
+    }
+
+    fyo = cy + yo;
+    pyo = fyo;
+    pyi = cy + yi;
+    ao = fyo.fraction(alpha);
+    ((Rgb565GfxHelper *)g)->blendVLine(alpha, color, pyi, pyo - 1, px1);
+    ((Rgb565GfxHelper *)g)->blendVLine(alpha, color, pyi, pyo - 1, px2);
+    if(ao > 0) {
+        ((Rgb565GfxHelper *)g)->blendPixel(ao, color, px1, pyo);
+        ((Rgb565GfxHelper *)g)->blendPixel(ao, color, px2, pyo);
+    }
+}
+
+void Rgb565Gfx::fillCircle(uint32_t color, int32_t x, int32_t y, uint32_t d) {
+    if(!IsVisible(this, x, y, d, d)) return;
+    d++;
+    FP r = (FP)d / (int32_t)2;
+    FP cx = x + r;
+    FP cy = y + r;
+    FP rr = square(r);
+
+    FP xo, yo;
+    FP ymax = FP::absMax(cy - clipY1, clipY2 - cy);
+    if((cy - clipY2) >= (int32_t)1) yo = (d & 1) ? floor(cy - clipY2) : (floor(cy - clipY2) - FP::HALF);
+    else if(clipY1 - cy >= (int32_t)1) yo = (d & 1) ? floor(clipY1 - cy) : (floor(clipY1 - cy) - FP::HALF);
+    else yo = (d & 1) ? FP::ONE : FP::HALF;
+    if(d & 1) DrawHLineAA(this, color, cx - r, cx + r, cy);
+    while(true) {
+        if(yo > ymax) return;
+        xo = sqrt(rr - square(yo));
+        if(xo >= yo) FillEllipseHLine2(this, color, cx, cy, xo, yo);
+        else break;
+        ++yo;
+    }
+
+    FP yo0 = yo;
+    FP xmax = GFX_MIN(xo, GFX_MAX(cx - clipX1, clipX2 - cx));
+    if(cx - clipX2 > (int32_t)1) xo = (d & 1) ? floor(cx - clipX2) : (floor(cx - clipX2) - FP::HALF);
+    else if(clipX1 - cx > (int32_t)1) xo = (d & 1) ? floor(clipX1 - cx) : (floor(clipX1 - cx) - FP::HALF);
+    else xo = (d & 1) ? FP::ONE : FP::HALF;
+    for(; xo < xmax; ++xo) {
+        yo = sqrt(rr - square(xo));
+        FillEllipseVLine4(this, color, cx, cy, yo, yo0, xo);
+    }
+    if(d & 1) FillEllipseVLine2(this, color, cx, cy, r, yo0);
+}
+
+void Rgb565Gfx::fillEllipse(uint32_t color, int32_t x, int32_t y, uint32_t w, uint32_t h) {
+    if(w == h) return fillCircle(color, x, y, w);
+    if(!IsVisible(this, x, y, w, h)) return;
+
+    w++;
+    h++;
+    FP a = (FP)w / (int32_t)2;
+    FP b = (FP)h / (int32_t)2;
+
+    FP cx = x + a;
+    FP cy = y + b;
+
+    FP aa = square(a);
+    FP bb = square(b);
+    FP ab = aa * bb;
+
+    FP yo, xo;
+    FP ymax = FP::absMax(cy - clipY1, clipY2 - cy);
+    if((cy - clipY2) > (int32_t)1) yo = (h & 1) ? floor(cy - clipY2) : (floor(cy - clipY2) - FP::HALF);
+    else if(clipY1 - cy > (int32_t)1) yo = (h & 1) ? floor(clipY1 - cy) : (floor(clipY1 - cy) - FP::HALF);
+    else yo = (h & 1) ? FP::ONE : FP::HALF;
+    if(h & 1) DrawHLineAA(this, color, cx - a, cx + a, cy);
+    while(true) {
+        if(yo > ymax) return;
+        xo = sqrt((ab - aa * square(yo)) / bb);
+        if(bb * xo >= aa * yo) FillEllipseHLine2(this, color, cx, cy, xo, yo);
+        else break;
+        ++yo;
+    }
+
+    FP yo0 = yo;
+    FP xmax = GFX_MIN(xo, GFX_MAX(cx - clipX1, clipX2 - cx));
+    if(cx - clipX2 > (int32_t)1) xo = (w & 1) ? floor(cx - clipX2) : (floor(cx - clipX2) - FP::HALF);
+    else if(clipX1 - cx > (int32_t)1) xo = (w & 1) ? floor(clipX1 - cx) : (floor(clipX1 - cx) - FP::HALF);
+    else xo = (w & 1) ? FP::ONE : FP::HALF;
+    for(; xo < xmax; ++xo) {
+        yo = sqrt((ab - bb * square(xo)) / aa);
+        FillEllipseVLine4(this, color, cx, cy, yo, yo0, xo);
+    }
+    if(w & 1) FillEllipseVLine2(this, color, cx, cy, b, yo0);
+}
+
+static void FillQuarterCircle1(Rgb565Gfx *g, uint32_t color, int32_t x, int32_t y, int32_t r) {
+    if(!IsVisible(g, x, y, r, r)) return;
+
+    int32_t cx = x + r;
+    int32_t cy = y + r;
+    FP aa = r * r;
+
+    FP xo;
+    FP ymax = cy - g->clipY1;
+    FP yo = (cy - g->clipY2 > 1) ? (cy - g->clipY2 - FP::HALF) : FP::HALF;
+    while(true) {
+        if(yo > ymax) return;
+        xo = sqrt(aa - square(yo));
+        if(xo >= yo) DrawHLineAA(g, color, cx - xo, cx - 1, cy - yo);
+        else break;
+        ++yo;
+    }
+
+    int32_t yo0 = cy - yo;
+    FP xmax = GFX_MIN(xo, (FP)(cx - g->clipX1));
+    xo = (cx - g->clipX2 > 1) ? (cx - g->clipX2 - FP::HALF) : FP::HALF;
+    for(; xo <= xmax; ++xo) {
+        yo = sqrt(aa - square(xo));
+        DrawVLineAA(g, color, cy - yo, yo0, cx - xo);
+    }
+}
+
+static void FillQuarterCircle2(Rgb565Gfx *g, uint32_t color, int32_t x, int32_t y, int32_t r) {
+    if(!IsVisible(g, x, y, r, r)) return;
+
+    int32_t cy = y + r;
+    FP aa = r * r;
+
+    FP xo;
+    FP ymax = cy - g->clipY1;
+    FP yo = (cy - g->clipY2 > 1) ? (cy - g->clipY2 - FP::HALF) : FP::HALF;
+    while(true) {
+        if(yo > ymax) return;
+        xo = sqrt(aa - square(yo));
+        if(xo >= yo) DrawHLineAA(g, color, x, x + xo, cy - yo);
+        else break;
+        ++yo;
+    }
+
+    int32_t yo0 = cy - yo;
+    FP xmax = GFX_MIN(xo, (FP)(g->clipX2 - x));
+    xo = (g->clipX1 - x > 1) ? (g->clipX1 - x - FP::HALF) : FP::HALF;
+    for(; xo <= xmax; ++xo) {
+        yo = sqrt(aa - square(xo));
+        DrawVLineAA(g, color, cy - yo, yo0, x + xo);
+    }
+}
+
+static void FillQuarterCircle3(Rgb565Gfx *g, uint32_t color, int32_t x, int32_t y, int32_t r) {
+    if(!IsVisible(g, x, y, r, r)) return;
+
+    FP aa = r * r;
+    FP xo;
+    FP ymax = g->clipY2 - y;
+    FP yo = (g->clipY1 - y > 1) ? (g->clipY1 - y - FP::HALF) : FP::HALF;
+    while(true) {
+        if(yo > ymax) return;
+        xo = sqrt(aa - square(yo));
+        if(xo >= yo) DrawHLineAA(g, color, x, x + xo, y + yo);
+        else break;
+        ++yo;
+    }
+
+    int32_t yo0 = y + yo;
+    FP xmax = GFX_MIN(xo, (FP)(g->clipX2 - x));
+    xo = (g->clipX1 - x > 1) ? (g->clipX1 - x - FP::HALF) : FP::HALF;
+    for(; xo <= xmax; ++xo) {
+        yo = sqrt(aa - square(xo));
+        DrawVLineAA(g, color, yo0, y + yo, x + xo);
+    }
+}
+
+static void FillQuarterCircle4(Rgb565Gfx *g, uint32_t color, int32_t x, int32_t y, int32_t r) {
+    if(!IsVisible(g, x, y, r, r)) return;
+
+    int32_t cx = x + r;
+    FP aa = r * r;
+
+    FP xo;
+    FP ymax = g->clipY2 - y;
+    FP yo = (g->clipY1 - y > 1) ? (g->clipY1 - y - FP::HALF) : FP::HALF;
+    while(true) {
+        if(yo > ymax) return;
+        xo = sqrt(aa - square(yo));
+        if(xo >= yo) DrawHLineAA(g, color, cx - xo, cx - 1, y + yo);
+        else break;
+        ++yo;
+    }
+
+    int32_t yo0 = y + yo;
+    FP xmax = GFX_MIN(xo, (FP)(cx - g->clipX1));
+    xo = (cx - g->clipX2 > 1) ? (cx - g->clipX2 - FP::HALF) : FP::HALF;
+    for(; xo <= xmax; ++xo) {
+        yo = sqrt(aa - square(xo));
+        DrawVLineAA(g, color, yo0, y + yo, cx - xo);
+    }
+}
+
+void Rgb565Gfx::fillRoundRect(uint32_t color, int32_t x, int32_t y, int32_t w, int32_t h, int32_t r1, int32_t r2, int32_t r3, int32_t r4) {
+    if(!IsVisible(this, x, y, w, h)) return;
     RadiusAdjustment(w, h, r1, r2, r3, r4);
 
     uint8_t alpha = color >> 27;
     int32_t x1, x2;
     int32_t y1 = GFX_MAX(clipY1 - y, 0);
-    int32_t y2 = GFX_MIN(clipY2 - y, h - 1);
+    int32_t y2 = GFX_MIN(clipY2 - y, h);
 
     for(int32_t i = y1; i <= y2; i++) {
-        x1 = x + (i <= r1 ? (r1 + 1) : (i > (h - r4 - 1) ? (r4 + 1) : 0));
-        x2 = x + w - 1 - (i <= r2 ? r2 : (i > (h - r3 - 1) ? r3 : 0));
+        x1 = x + (i < r1 ? r1 : (i > (h - r4) ? r4 : 0));
+        x2 = x + w - (i < r2 ? r2 : (i > (h - r3) ? r3 : 0));
         ((Rgb565GfxHelper *)this)->blendHLine(alpha, color, x1, x2, i + y);
     }
 
-    x2 = x + w - 1;
-    y2 = y + h - 1;
-    if(r1 > 0) FillCornerArc((Rgb565GfxHelper *)this, color, x + r1, y + r1, r1, 0);
-    if(r2 > 0) FillCornerArc((Rgb565GfxHelper *)this, color, x2 - r2, y + r2, r2, 1);
-    if(r3 > 0) FillCornerArc((Rgb565GfxHelper *)this, color, x2 - r3, y2 - r3, r3, 2);
-    if(r4 > 0) FillCornerArc((Rgb565GfxHelper *)this, color, x + r4, y2 - r4, r4, 3);
+    if(r1 > 0) FillQuarterCircle1(this, color, x, y, r1);
+    if(r2 > 0) FillQuarterCircle2(this, color, x + w - r2 + 1, y, r2);
+    if(r3 > 0) FillQuarterCircle3(this, color, x + w - r3 + 1, y + h - r3 + 1, r3);
+    if(r4 > 0) FillQuarterCircle4(this, color, x, y + h - r4 + 1, r4);
 }
 
-void Rgb565Gfx::drawEllipse(uint32_t color, uint32_t thickness, int32_t x, int32_t y, uint32_t w, uint32_t h) {
-    if(w <= (thickness + 2) || h <= (thickness + 2))
-        return fillEllipse(color, x - thickness / 2, y - thickness / 2, w + thickness, h + thickness);
+static void DrawChar(Rgb565GfxHelper *g, const CharInfo *c, uint32_t color, int32_t x, int32_t y) {
+    int32_t cx0 = GFX_MAX(g->clipX1 - x, 0);
+    int32_t cxw = GFX_MIN(g->clipX2 - x + 1, (int32_t)c->getWidth());
+    if(cx0 >= cxw) return;
 
-    if(thickness == 1) {
-        if(!IsVisible((Rgb565GfxHelper *)this, x, y, w, h)) return;
+    uint8_t height = c->getHeight();
+    int8_t yOff = c->getYOffset();
+    uint8_t alpha = color >> 27;
 
-        uint8_t alpha = color >> 27;
-
-        int32_t cx = x + w / 2;
-        int32_t cy = y + h / 2;
-
-        uint64_t aa = ((uint64_t)w * w) << 2;
-        uint64_t bb = ((uint64_t)h * h) << 2;
-        uint64_t ab = (uint64_t)w * w * h * h;
-
-        int32_t xo = w / 2;
-        int32_t yo = (cy > clipY2) ? (cy - clipY2) : ((clipY1 > cy) ? (clipY1 - cy) : 1);
-        int32_t ymax = GFX_MAX(GFX_ABS(cy - clipY1), GFX_ABS(clipY2 - cy));
-
-        if(w & 1) {
-            uint8_t a = (alpha + 1) / 2;
-            ((Rgb565GfxHelper *)this)->blendPixel(a, color, x, cy);
-            ((Rgb565GfxHelper *)this)->blendPixel(alpha - a, color, x + 1, cy);
-            ((Rgb565GfxHelper *)this)->blendPixel(a, color, x + w - 1, cy);
-            ((Rgb565GfxHelper *)this)->blendPixel(a, color, x + w - 2, cy);
-        }
-        else {
-            ((Rgb565GfxHelper *)this)->blendPixel(alpha, color, x + 1, cy);
-            ((Rgb565GfxHelper *)this)->blendPixel(alpha, color, x + w - 1, cy);
-        }
-        for(; bb * xo >= aa * yo; yo++) {
-            if(yo > ymax) return;
-            int64_t fxo = ISqrt(((ab - aa * yo * yo) / bb) << (GFX_F_BITS << 1));
-            xo = (int32_t)(fxo >> GFX_F_BITS);
-            uint8_t ao = ((uint32_t)fxo & fpmask) * alpha / fpmax;
-            uint8_t ai = alpha - ao;
-            if(ao > 0) {
-                ((Rgb565GfxHelper *)this)->blendPixel(ao, color, cx - xo, cy - yo);
-                ((Rgb565GfxHelper *)this)->blendPixel(ao, color, cx - xo, cy + yo);
-                ((Rgb565GfxHelper *)this)->blendPixel(ao, color, cx + xo, cy - yo);
-                ((Rgb565GfxHelper *)this)->blendPixel(ao, color, cx + xo, cy + yo);
-            }
-            if(ai > 0) {
-                ((Rgb565GfxHelper *)this)->blendPixel(ai, color, cx - xo + 1, cy - yo);
-                ((Rgb565GfxHelper *)this)->blendPixel(ai, color, cx - xo + 1, cy + yo);
-                ((Rgb565GfxHelper *)this)->blendPixel(ai, color, cx + xo - 1, cy - yo);
-                ((Rgb565GfxHelper *)this)->blendPixel(ai, color, cx + xo - 1, cy + yo);
-            }
-        }
-        xo = (int32_t)(ISqrt(((ab - aa * yo * yo) / bb) << (GFX_F_BITS << 1)) >> GFX_F_BITS);
-        int32_t xmin = (cx > clipX2) ? (cx - clipX2) : ((clipX1 > cx) ? (clipX1 - cx) : 1);
-        int32_t xmax = GFX_MAX(GFX_ABS(cx - clipX1), GFX_ABS(clipX2 - cx));
-        xo = GFX_MIN(xo, xmax);
-        for(; xo >= xmin; xo--) {
-            int64_t fyo = ISqrt(((ab - bb * xo * xo) / aa) << (GFX_F_BITS << 1));
-            yo = (int32_t)(fyo >> GFX_F_BITS);
-            uint8_t ao = ((uint32_t)fyo & fpmask) * alpha / fpmax;
-            uint8_t ai = alpha - ao;
-            if(ao > 0) {
-                ((Rgb565GfxHelper *)this)->blendPixel(ao, color, cx - xo, cy - yo);
-                ((Rgb565GfxHelper *)this)->blendPixel(ao, color, cx - xo, cy + yo);
-                ((Rgb565GfxHelper *)this)->blendPixel(ao, color, cx + xo, cy - yo);
-                ((Rgb565GfxHelper *)this)->blendPixel(ao, color, cx + xo, cy + yo);
-            }
-            if(ai > 0) {
-                ((Rgb565GfxHelper *)this)->blendPixel(ai, color, cx - xo, cy - yo + 1);
-                ((Rgb565GfxHelper *)this)->blendPixel(ai, color, cx - xo, cy + yo - 1);
-                ((Rgb565GfxHelper *)this)->blendPixel(ai, color, cx + xo, cy - yo + 1);
-                ((Rgb565GfxHelper *)this)->blendPixel(ai, color, cx + xo, cy + yo - 1);
-            }
-        }
-        if(h & 1) {
-            uint8_t a = (alpha + 1) / 2;
-            ((Rgb565GfxHelper *)this)->blendPixel(a, color, cx, y);
-            ((Rgb565GfxHelper *)this)->blendPixel(alpha - a, color, cx, y + 1);
-            ((Rgb565GfxHelper *)this)->blendPixel(a, color, cx, y + h - 1);
-            ((Rgb565GfxHelper *)this)->blendPixel(a, color, cx, y + h - 2);
-        }
-        else {
-            ((Rgb565GfxHelper *)this)->blendPixel(alpha, color, cx, y + 1);
-            ((Rgb565GfxHelper *)this)->blendPixel(alpha, color, cx, y + h - 1);
+    if(alpha == 0x1F) {
+        for(int32_t cy = 0; cy < height; cy++) {
+            int32_t py = y + cy + yOff;
+            if(!(g->clipY1 <= y && y <= g->clipY2)) continue;
+            uint16_t *p = &((uint16_t *)g->data)[py * g->width + x];
+            for(int32_t cx = cx0; cx < cxw; cx++)
+                if(c->getPixel(cx, cy)) p[cx] = color;
         }
     }
     else {
-        int32_t cx = x + w / 2;
-        int32_t cy = y + h / 2;
-
-        int32_t wo = w + thickness;
-        int32_t ho = h + thickness;
-
-        if(!IsVisible((Rgb565GfxHelper *)this, cx - wo / 2, cy - ho / 2, wo, ho)) return;
-
-        uint8_t alpha = color >> 27;
-
-        int32_t wi = (w > thickness) ? (w - thickness) : 1;
-        int32_t hi = (h > thickness) ? (h - thickness) : 1;
-
-        uint64_t aa = ((uint64_t)wo * wo) << 2;
-        uint64_t bb = ((uint64_t)ho * ho) << 2;
-        uint64_t ab = (uint64_t)wo * wo * ho * ho;
-
-        uint64_t cc = ((uint64_t)wi * wi) << 2;
-        uint64_t dd = ((uint64_t)hi * hi) << 2;
-        uint64_t cd = (uint64_t)wi * wi * hi * hi;
-
-        int32_t xo = wo / 2, xi = wi / 2;
-        int32_t yo = (cy > clipY2) ? (cy - clipY2) : ((clipY1 > cy) ? (clipY1 - cy) : 1);
-        int32_t ymax = GFX_MAX(GFX_ABS(cy - clipY1), GFX_ABS(clipY2 - cy));
-
-        ((Rgb565GfxHelper *)this)->blendHLine(alpha, color, cx - wo / 2 + 1, cx - wi / 2 - (wi & 1), cy);
-        ((Rgb565GfxHelper *)this)->blendHLine(alpha, color, cx + wi / 2 + (wi & 1), cx + wo / 2 - 1, cy);
-        if(wo & 1) {
-            uint8_t ao = (alpha + 1) / 2;
-            ((Rgb565GfxHelper *)this)->blendPixel(ao, color, cx - wo / 2, cy);
-            ((Rgb565GfxHelper *)this)->blendPixel(ao, color, cx + wo / 2, cy);
+        for(int32_t cy = 0; cy < height; cy++) {
+            int32_t py = y + cy + yOff;
+            if(!(g->clipY1 <= y && y <= g->clipY2)) continue;
+            for(int32_t cx = cx0; cx < cxw; cx++)
+                if(c->getPixel(cx, cy)) g->blendPixel(alpha, color, x + cx, py);
         }
-        if(wi & 1) {
-            uint8_t ai = (alpha + 1) / 2;
-            ((Rgb565GfxHelper *)this)->blendPixel(ai, color, cx - wi / 2, cy);
-            ((Rgb565GfxHelper *)this)->blendPixel(ai, color, cx + wi / 2, cy);
-        }
-        for(; dd * xi >= cc * yo; yo++) {
-            if(yo > ymax) return;
-            int64_t fxo = ISqrt(((ab - aa * yo * yo) / bb) << (GFX_F_BITS << 1));
-            int64_t fxi = ISqrt(((cd - cc * yo * yo) / dd) << (GFX_F_BITS << 1));
-            xo = (int32_t)(fxo >> GFX_F_BITS);
-            xi = (int32_t)(fxi >> GFX_F_BITS);
-            uint8_t ao = ((uint32_t)fxo & fpmask) * alpha / fpmax;
-            uint8_t ai = alpha - ((uint32_t)fxi & fpmask) * alpha / fpmax;
-            ((Rgb565GfxHelper *)this)->blendHLine(alpha, color, cx - xo + 1, cx - xi - 1, cy - yo);
-            ((Rgb565GfxHelper *)this)->blendHLine(alpha, color, cx - xo + 1, cx - xi - 1, cy + yo);
-            ((Rgb565GfxHelper *)this)->blendHLine(alpha, color, cx + xi + 1, cx + xo - 1, cy - yo);
-            ((Rgb565GfxHelper *)this)->blendHLine(alpha, color, cx + xi + 1, cx + xo - 1, cy + yo);
-            if(ao > 0) {
-                ((Rgb565GfxHelper *)this)->blendPixel(ao, color, cx - xo, cy - yo);
-                ((Rgb565GfxHelper *)this)->blendPixel(ao, color, cx - xo, cy + yo);
-                ((Rgb565GfxHelper *)this)->blendPixel(ao, color, cx + xo, cy - yo);
-                ((Rgb565GfxHelper *)this)->blendPixel(ao, color, cx + xo, cy + yo);
-            }
-            if(ai > 0 && xi > 0) {
-                ((Rgb565GfxHelper *)this)->blendPixel(ai, color, cx - xi, cy - yo);
-                ((Rgb565GfxHelper *)this)->blendPixel(ai, color, cx - xi, cy + yo);
-                ((Rgb565GfxHelper *)this)->blendPixel(ai, color, cx + xi, cy - yo);
-                ((Rgb565GfxHelper *)this)->blendPixel(ai, color, cx + xi, cy + yo);
-            }
-        }
-
-        int32_t xo0 = GFX_MAX(xi, 1);
-        for(; bb * xo >= aa * yo; yo++) {
-            if(yo > ymax) return;
-            int64_t fxo = ISqrt(((ab - aa * yo * yo) / bb) << (GFX_F_BITS << 1));
-            xo = (int32_t)(fxo >> GFX_F_BITS);
-            uint8_t ao = ((uint32_t)fxo & fpmask) * alpha / fpmax;
-            ((Rgb565GfxHelper *)this)->blendHLine(alpha, color, cx - xo + 1, cx - xo0, cy - yo);
-            ((Rgb565GfxHelper *)this)->blendHLine(alpha, color, cx - xo + 1, cx - xo0, cy + yo);
-            ((Rgb565GfxHelper *)this)->blendHLine(alpha, color, cx + xo0, cx + xo - 1, cy - yo);
-            ((Rgb565GfxHelper *)this)->blendHLine(alpha, color, cx + xo0, cx + xo - 1, cy + yo);
-            if(ao > 0) {
-                ((Rgb565GfxHelper *)this)->blendPixel(ao, color, cx - xo, cy - yo);
-                ((Rgb565GfxHelper *)this)->blendPixel(ao, color, cx - xo, cy + yo);
-                ((Rgb565GfxHelper *)this)->blendPixel(ao, color, cx + xo, cy - yo);
-                ((Rgb565GfxHelper *)this)->blendPixel(ao, color, cx + xo, cy + yo);
-            }
-        }
-
-        int32_t yo0 = yo;
-        xo = (int32_t)(ISqrt(((ab - aa * yo0 * yo0) / bb) << (GFX_F_BITS << 1)) >> GFX_F_BITS);
-        int32_t xmin = (cx > clipX2) ? (cx - clipX2) : ((clipX1 > cx) ? (clipX1 - cx) : 1);
-        int32_t xmax = GFX_MAX(GFX_ABS(cx - clipX1), GFX_ABS(clipX2 - cx));
-        xo = GFX_MIN(xo, xmax);
-        xo0 = GFX_MAX(xo0, xmin);
-        for(; xo >= xo0; xo--) {
-            int64_t fyo = ISqrt(((ab - bb * xo * xo) / aa) << (GFX_F_BITS << 1));
-            yo = (int32_t)(fyo >> GFX_F_BITS);
-            uint8_t ao = ((uint32_t)fyo & fpmask) * alpha / fpmax;
-            ((Rgb565GfxHelper *)this)->blendVLine(alpha, color, cy - yo + 1, cy - yo0, cx - xo);
-            ((Rgb565GfxHelper *)this)->blendVLine(alpha, color, cy - yo + 1, cy - yo0, cx + xo);
-            ((Rgb565GfxHelper *)this)->blendVLine(alpha, color, cy + yo0, cy + yo - 1, cx - xo);
-            ((Rgb565GfxHelper *)this)->blendVLine(alpha, color, cy + yo0, cy + yo - 1, cx + xo);
-            if(ao > 0) {
-                ((Rgb565GfxHelper *)this)->blendPixel(ao, color, cx - xo, cy - yo);
-                ((Rgb565GfxHelper *)this)->blendPixel(ao, color, cx + xo, cy - yo);
-                ((Rgb565GfxHelper *)this)->blendPixel(ao, color, cx - xo, cy + yo);
-                ((Rgb565GfxHelper *)this)->blendPixel(ao, color, cx + xo, cy + yo);
-            }
-        }
-
-        for(; xo >= xmin; xo--) {
-            int64_t fyo = ISqrt(((ab - bb * xo * xo) / aa) << (GFX_F_BITS << 1));
-            int64_t fyi = ISqrt(((cd - dd * xo * xo) / cc) << (GFX_F_BITS << 1));
-            yo = (int32_t)(fyo >> GFX_F_BITS);
-            int32_t yi = (int32_t)(fyi >> GFX_F_BITS);
-            uint8_t ao = ((uint32_t)fyo & fpmask) * alpha / fpmax;
-            uint8_t ai = alpha - ((uint32_t)fyi & fpmask) * alpha / fpmax;
-            ((Rgb565GfxHelper *)this)->blendVLine(alpha, color, cy - yo + 1, cy - yi - 1, cx - xo);
-            ((Rgb565GfxHelper *)this)->blendVLine(alpha, color, cy - yo + 1, cy - yi - 1, cx + xo);
-            ((Rgb565GfxHelper *)this)->blendVLine(alpha, color, cy + yi + 1, cy + yo - 1, cx - xo);
-            ((Rgb565GfxHelper *)this)->blendVLine(alpha, color, cy + yi + 1, cy + yo - 1, cx + xo);
-            if(ao > 0) {
-                ((Rgb565GfxHelper *)this)->blendPixel(ao, color, cx - xo, cy - yo);
-                ((Rgb565GfxHelper *)this)->blendPixel(ao, color, cx + xo, cy - yo);
-                ((Rgb565GfxHelper *)this)->blendPixel(ao, color, cx - xo, cy + yo);
-                ((Rgb565GfxHelper *)this)->blendPixel(ao, color, cx + xo, cy + yo);
-            }
-            if(ai > 0 && yi > 0) {
-                ((Rgb565GfxHelper *)this)->blendPixel(ai, color, cx - xo, cy - yi);
-                ((Rgb565GfxHelper *)this)->blendPixel(ai, color, cx + xo, cy - yi);
-                ((Rgb565GfxHelper *)this)->blendPixel(ai, color, cx - xo, cy + yi);
-                ((Rgb565GfxHelper *)this)->blendPixel(ai, color, cx + xo, cy + yi);
-            }
-        }
-        ((Rgb565GfxHelper *)this)->blendVLine(alpha, color, cy - ho / 2 + 1, cy - hi / 2 - (hi & 1), cx);
-        ((Rgb565GfxHelper *)this)->blendVLine(alpha, color, cy + hi / 2 + (hi & 1), cy + ho / 2 - 1, cx);
-        if(ho & 1) {
-            uint8_t ao = (alpha + 1) / 2;
-            ((Rgb565GfxHelper *)this)->blendPixel(ao, color, cx, cy - ho / 2);
-            ((Rgb565GfxHelper *)this)->blendPixel(ao, color, cx, cy + ho / 2);
-        }
-        if(hi & 1) {
-            uint8_t ai = (alpha + 1) / 2;
-            ((Rgb565GfxHelper *)this)->blendPixel(ai, color, cx, cy - hi / 2);
-            ((Rgb565GfxHelper *)this)->blendPixel(ai, color, cx, cy + hi / 2);
-        }
-    }
-}
-
-void Rgb565Gfx::fillEllipse(uint32_t color, int32_t x, int32_t y, uint32_t w, uint32_t h) {
-    if(!IsVisible((Rgb565GfxHelper *)this, x, y, w, h)) return;
-
-    uint8_t alpha = color >> 27;
-
-    int32_t cx = x + w / 2;
-    int32_t cy = y + h / 2;
-
-    uint64_t ww = ((uint64_t)w * w) << 2;
-    uint64_t hh = ((uint64_t)h * h) << 2;
-    uint64_t wh = (uint64_t)w * w * h * h;
-
-    int32_t ix = w;
-    int32_t iy = (cy > clipY2) ? (cy - clipY2) : ((clipY1 > cy) ? (clipY1 - cy) : 1);
-    int32_t ymax = GFX_MAX(GFX_ABS(cy - clipY1), GFX_ABS(clipY2 - cy));
-
-    ((Rgb565GfxHelper *)this)->blendHLine(alpha, color, x + 1, x + w - 1 - (w & 1), cy);
-    if(w & 1) {
-        uint8_t a = (alpha + 1) / 2;
-        ((Rgb565GfxHelper *)this)->blendPixel(a, color, x, cy);
-        ((Rgb565GfxHelper *)this)->blendPixel(a, color, x + w - 1, cy);
-    }
-    for(; hh * ix >= ww * iy; iy++) {
-        if(iy > ymax) return;
-        int64_t fx = ISqrt(((wh - ww * iy * iy) / hh) << (GFX_F_BITS << 1));
-        ix = (int32_t)(fx >> GFX_F_BITS);
-        uint8_t a = ((uint32_t)fx & fpmask) * alpha / fpmax;
-        ((Rgb565GfxHelper *)this)->blendHLine(alpha, color, cx - ix + 1, cx + ix - 1, cy - iy);
-        ((Rgb565GfxHelper *)this)->blendHLine(alpha, color, cx - ix + 1, cx + ix - 1, cy + iy);
-        if(a > 0) {
-            ((Rgb565GfxHelper *)this)->blendPixel(a, color, cx - ix, cy - iy);
-            ((Rgb565GfxHelper *)this)->blendPixel(a, color, cx + ix, cy - iy);
-            ((Rgb565GfxHelper *)this)->blendPixel(a, color, cx - ix, cy + iy);
-            ((Rgb565GfxHelper *)this)->blendPixel(a, color, cx + ix, cy + iy);
-        }
-    }
-    ix = (int32_t)(ISqrt(((wh - ww * iy * iy) / hh) << (GFX_F_BITS << 1)) >> GFX_F_BITS);
-    int32_t xmin = (cx > clipX2) ? (cx - clipX2) : ((clipX1 > cx) ? (clipX1 - cx) : 1);
-    int32_t xmax = GFX_MAX(GFX_ABS(cx - clipX1), GFX_ABS(clipX2 - cx));
-    ix = GFX_MIN(ix, xmax);
-    for(; ix > 0; ix--) {
-        int64_t fy = ISqrt(((wh - hh * ix * ix) / ww) << (GFX_F_BITS << 1));
-        int32_t y2 = (int32_t)(fy >> GFX_F_BITS);
-        uint8_t a = ((uint32_t)fy & fpmask) * alpha / fpmax;
-        ((Rgb565GfxHelper *)this)->blendVLine(alpha, color, cy - y2 + 1, cy - iy, cx - ix);
-        ((Rgb565GfxHelper *)this)->blendVLine(alpha, color, cy + iy, cy + y2 - 1, cx - ix);
-        ((Rgb565GfxHelper *)this)->blendVLine(alpha, color, cy - y2 + 1, cy - iy, cx + ix);
-        ((Rgb565GfxHelper *)this)->blendVLine(alpha, color, cy + iy, cy + y2 - 1, cx + ix);
-        if(a > 0) {
-            ((Rgb565GfxHelper *)this)->blendPixel(a, color, cx - ix, cy - y2);
-            ((Rgb565GfxHelper *)this)->blendPixel(a, color, cx + ix, cy - y2);
-            ((Rgb565GfxHelper *)this)->blendPixel(a, color, cx - ix, cy + y2);
-            ((Rgb565GfxHelper *)this)->blendPixel(a, color, cx + ix, cy + y2);
-        }
-    }
-    ((Rgb565GfxHelper *)this)->blendVLine(alpha, color, y + 1, cy - iy, cx);
-    ((Rgb565GfxHelper *)this)->blendVLine(alpha, color, cy + iy, y + h - 1 - (h & 1), cx);
-    if(h & 1) {
-        uint8_t a = (alpha + 1) / 2;
-        ((Rgb565GfxHelper *)this)->blendPixel(a, color, cx, y);
-        ((Rgb565GfxHelper *)this)->blendPixel(a, color, cx, y + h - 1);
     }
 }
 

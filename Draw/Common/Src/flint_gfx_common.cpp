@@ -1,5 +1,5 @@
 
-#include "flint_font.h"
+#include "flint_gfx_common.h"
 
 uint8_t CharInfo::getWidth(void) const {
     return width;

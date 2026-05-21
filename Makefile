@@ -18,10 +18,12 @@ DEF             :=
 LIBS            :=  -lbgi -lgdi32 -lcomdlg32 -luuid -loleaut32 -lole32
 
 FLAGS           :=  -m32                                                                                            \
+					-Wall																							\
+					-std=c++20																						\
                     -fdiagnostics-color=always                                                                      \
-                    -g
+                    -O0 -g
 
-LDFLAGS         :=  
+LDFLAGS         :=  -O0 -g
 
 
 #####################################################################################################################
@@ -33,7 +35,8 @@ INCLUDES      	:=  $(OBJECT_DIR)                                                
 					Draw/Common/Inc																					\
 					Draw/Rgb565/Inc
 
-SOURCES       	:=  Draw/Common/Src/flint_font.cpp																	\
+SOURCES       	:=  Draw/Common/Src/flint_gfx_common.cpp															\
+					Draw/Rgb565/Src/flint_fixed_point.cpp															\
 					Draw/Rgb565/Src/flint_rgb565_sw_gfx.cpp															\
 					Draw/Rgb565/Src/flint_rgb565_sw_gfx_helper.cpp													\
 					User/Src/main.cpp

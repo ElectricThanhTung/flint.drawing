@@ -4,10 +4,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <graphics.h>
-
 #include "flint_rgb565_gfx.h"
-
-#include <math.h>
 
 using namespace std;
 
@@ -28,15 +25,6 @@ static void WriteScreen(uint8_t *rgbBuff, uint16_t x, uint16_t y, uint16_t width
     free(image);
 }
 
-class Rgb565GfxInitHelper : public Rgb565Gfx {
-public:
-    Rgb565GfxInitHelper(int32_t w, int32_t h, uint8_t *data) : Rgb565Gfx(
-        w, h, 0, 0, w - 1, h - 1, data
-    ){
-
-    }
-};
-
 uint32_t Color(uint8_t a, uint8_t r, uint8_t g, uint8_t b) {
     uint32_t tmp = (r << 5) & 0x1F00;
     tmp |= b & 0xF8;
@@ -54,18 +42,22 @@ int main(void) {
 
     uint16_t *buff = new uint16_t[w * h];
     memset(buff, 0, w * h * 2);
-    Rgb565GfxInitHelper g(w, h, (uint8_t *)buff);
+    Rgb565Gfx g(
+        w, h,
+        0, 0,
+        499, 499,
+        (uint8_t *)buff
+    );
 
-    // g.drawLine(Color(255, 255, 255, 255), 2, 10, 10, 100, 10);
-    // g.drawLine(Color(255, 255, 255, 255), 10, 10, 10, 100, 20);
+    // g.drawRect(Color(255, 255, 0, 0), 2, 10, 10, 201, 101);
+    // g.fillEllipse(Color(128, 0, 255, 0), 10, 10, 200, 200);
+    // g.fillRoundRect(Color(128, 0, 255, 0), 10, 100 - 160, 200, 100, 80, 10, 10, 10);
 
-    // g.fillRect(Color(255, 255, 255, 255), 10, 10, 100, 50);
+    // g.drawRoundRect(Color(128, 0, 255, 0), 6, 50, 50, 201, 201, 20, 20, 30, 20);
 
-    // g.fillEllipse(Color(127, 255, 255, 255), 10, 10, 100, 400);
+    g.drawEllipse(Color(128, 0, 255, 0), 6, 10, 10, 39, 39);
 
-    // g.drawLatin1((uint8_t *)"Hello Thanh Tùng", 17, (Font *)Times_New_Roman, Color(127, 255, 255, 255), 10, 10);
-
-    g.drawEllipse(Color(128, 0, 255, 0), 1, 50, 50, 201, 200);
+    g.fillEllipse(Color(128, 0, 255, 0), 100, 100, 45, 45);
 
     WriteScreen((uint8_t *)buff, 0, 0, w, h);
 
