@@ -370,45 +370,53 @@ void Rgb565Gfx::drawRect(uint32_t color, uint32_t thickness, int32_t x, int32_t 
     uint8_t alpha = color >> 27;
     int32_t half = (thickness - 1) >> 1;
 
-    int32_t x1 = x;
-    int32_t x2 = x + w;
-    int32_t y1 = y;
-    int32_t y2 = y + h;
+    int32_t xo1 = x - half;
+    int32_t yo1 = y - half;
+    int32_t xo2 = x + w + half;
+    int32_t yo2 = y + h + half;
+
+    int32_t xi1 = x + half;
+    int32_t yi1 = y + half;
+    int32_t xi2 = x + w - half;
+    int32_t yi2 = y + h - half;
+
+    ((Rgb565GfxHelper *)this)->blendRect(alpha, color, xo1, yo1, xo2, yi1);
+    ((Rgb565GfxHelper *)this)->blendRect(alpha, color, xo1, yi2, xo2, yo2);
+
+    yi1++;
+    yi2--;
+
+    ((Rgb565GfxHelper *)this)->blendRect(alpha, color, xo1, yi1, xi1, yi2);
+    ((Rgb565GfxHelper *)this)->blendRect(alpha, color, xi2, yi1, xo2, yi2);
 
     if((thickness & 0x01) == 0) {
         uint8_t a = color >> 28;
 
-        ((Rgb565GfxHelper *)this)->blendHLine(a, color, x1 - half - 1, x2 + half + 1, y1 - half - 1);
-        ((Rgb565GfxHelper *)this)->blendHLine(a, color, x1 - half - 1, x2 + half + 1, y2 + half + 1);
+        xo1--;
+        xo2++;
+        xi1++;
+        xi2--;
 
-        ((Rgb565GfxHelper *)this)->blendHLine(a, color, x1 + half + 1, x2 - half - 1, y1 + half + 1);
-        ((Rgb565GfxHelper *)this)->blendHLine(a, color, x1 + half + 1, x2 - half - 1, y2 - half - 1);
+        ((Rgb565GfxHelper *)this)->blendHLine(a, color, xo1, xo2, yo1 - 1);
+        ((Rgb565GfxHelper *)this)->blendHLine(a, color, xo1, xo2, yo2 + 1);
 
-        ((Rgb565GfxHelper *)this)->blendVLine(a, color, y1 - half, y2 + half, x1 - half - 1);
-        ((Rgb565GfxHelper *)this)->blendVLine(a, color, y1 - half, y2 + half, x2 + half + 1);
+        ((Rgb565GfxHelper *)this)->blendHLine(a, color, xi1, xi2, yi1);
+        ((Rgb565GfxHelper *)this)->blendHLine(a, color, xi1, xi2, yi2);
 
-        ((Rgb565GfxHelper *)this)->blendVLine(a, color, y1 + half + 1, y2 - half - 1, x1 + half + 1);
-        ((Rgb565GfxHelper *)this)->blendVLine(a, color, y1 + half + 1, y2 - half - 1, x2 - half - 1);
+        ((Rgb565GfxHelper *)this)->blendVLine(a, color, yo1, yo2, xo1);
+        ((Rgb565GfxHelper *)this)->blendVLine(a, color, yo1, yo2, xo2);
 
-        thickness--;
+        ((Rgb565GfxHelper *)this)->blendVLine(a, color, yi1, yi2, xi1);
+        ((Rgb565GfxHelper *)this)->blendVLine(a, color, yi1, yi2, xi2);
     }
-
-    ((Rgb565GfxHelper *)this)->blendRect(alpha, color, x1 - half, y1 - half, x2 + half, y1 + half);
-    ((Rgb565GfxHelper *)this)->blendRect(alpha, color, x1 - half, y2 - half, x2 + half, y2 + half);
-
-    ((Rgb565GfxHelper *)this)->blendRect(alpha, color, x1 - half, y1 + half + 1, x1 - half, y2 - half - 1);
-    ((Rgb565GfxHelper *)this)->blendRect(alpha, color, x2 + half, y1 + half + 1, x2 + half, y2 - half - 1);
 }
 
 void Rgb565Gfx::fillRect(uint32_t color, int32_t x, int32_t y, int32_t w, int32_t h) {
     ((Rgb565GfxHelper *)this)->blendRect(color >> 27, color, x, y, x + w, y + h);
 }
 
-void Rgb565Gfx::fillRoundRect(uint32_t color, int32_t x, int32_t y, int32_t w, int32_t h, uint32_t r1, uint32_t r2, uint32_t r3, uint32_t r4) {
-    if(!IsVisible((Rgb565GfxHelper *)this, x, y, w, h)) return;
 
-    uint8_t alpha = color >> 27;
-
+static void RadiusAdjustment(int32_t w, int32_t h, uint32_t &r1, uint32_t &r2, uint32_t &r3, uint32_t &r4) {
     uint8_t scale = 128;
     if(r1 + r2 > w) scale = (w << 7) / (r1 + r2);
     if(r3 + r4 > w) scale = GFX_MIN(scale, (w << 7) / (r3 + r4));
@@ -420,7 +428,13 @@ void Rgb565Gfx::fillRoundRect(uint32_t color, int32_t x, int32_t y, int32_t w, i
         r3 = r3 * scale >> 7;
         r4 = r4 * scale >> 7;
     }
+}
 
+void Rgb565Gfx::fillRoundRect(uint32_t color, int32_t x, int32_t y, int32_t w, int32_t h, uint32_t r1, uint32_t r2, uint32_t r3, uint32_t r4) {
+    if(!IsVisible((Rgb565GfxHelper *)this, x, y, w, h)) return;
+    RadiusAdjustment(w, h, r1, r2, r3, r4);
+
+    uint8_t alpha = color >> 27;
     int32_t x1, x2;
     int32_t y1 = GFX_MAX(clipY1 - y, 0);
     int32_t y2 = GFX_MIN(clipY2 - y, h - 1);
