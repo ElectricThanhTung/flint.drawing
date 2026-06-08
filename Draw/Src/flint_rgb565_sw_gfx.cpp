@@ -1005,7 +1005,7 @@ static void DrawQuarterCircle1(Rgb565Gfx *g, uint32_t color, int32_t thk, int32_
         FP cy = y + r + FP::HALF;
         FP xo, xi, yi;
         FP rro = square(r + (FP)thk / (int32_t)2);
-        FP rri = (thk >= r) ? (FP)0 : square(r - (FP)thk / (int32_t)2);
+        FP rri = (thk >= (r << 1)) ? (FP)0 : square(r - (FP)thk / (int32_t)2);
 
         FP ymax = cy - g->clipY1;
         FP yo = (cy - g->clipY2 > FP::ONE) ? floor(cy - g->clipY2) : FP::ONE;
@@ -1093,7 +1093,7 @@ static void DrawQuarterCircle2(Rgb565Gfx *g, uint32_t color, int32_t thk, int32_
         FP cy = y + r + FP::HALF;
         FP xo, xi, yi;
         FP rro = square(r + (FP)thk / (int32_t)2);
-        FP rri = (thk >= r) ? (FP)0 : square(r - (FP)thk / (int32_t)2);
+        FP rri = (thk >= (r << 1)) ? (FP)0 : square(r - (FP)thk / (int32_t)2);
 
         FP ymax = cy - g->clipY1;
         FP yo = (cy - g->clipY2 > FP::ONE) ? floor(cy - g->clipY2) : FP::ONE;
@@ -1181,7 +1181,7 @@ static void DrawQuarterCircle3(Rgb565Gfx *g, uint32_t color, int32_t thk, int32_
         FP cy = y - FP::HALF;
         FP xo, xi, yi;
         FP rro = square(r + (FP)thk / (int32_t)2);
-        FP rri = (thk >= r) ? (FP)0 : square(r - (FP)thk / (int32_t)2);
+        FP rri = (thk >= (r << 1)) ? (FP)0 : square(r - (FP)thk / (int32_t)2);
 
         FP ymax = g->clipY2 - cy;
         FP yo = (g->clipY1 - cy > FP::ONE) ? floor(g->clipY1 - cy) : FP::ONE;
@@ -1269,7 +1269,7 @@ static void DrawQuarterCircle4(Rgb565Gfx *g, uint32_t color, int32_t thk, int32_
         FP cy = y - FP::HALF;
         FP xo, xi, yi;
         FP rro = square(r + (FP)thk / (int32_t)2);
-        FP rri = (thk >= r) ? (FP)0 : square(r - (FP)thk / (int32_t)2);
+        FP rri = (thk >= (r << 1)) ? (FP)0 : square(r - (FP)thk / (int32_t)2);
 
         FP ymax = g->clipY2 - cy;
         FP yo = (g->clipY1 - cy > FP::ONE) ? floor(g->clipY1 - cy) : FP::ONE;
@@ -1427,8 +1427,8 @@ void Rgb565Gfx::drawRoundRect(uint32_t color, int32_t thk, int32_t x, int32_t y,
         for(; x1 <= x2; x1++) ((Rgb565GfxHelper *)this)->blendVLine(a1, color, y1, y2, x1);
 
         x2 = x + w + half;
-        y1 = GFX_MIN(y + r2, y + half + 1);
-        y2 = GFX_MAX(y + h - r3, y + h - half - 1);
+        y1 = y + r2;
+        y2 = y + h - r3;
         for(; x1 <= x2; x1++) ((Rgb565GfxHelper *)this)->blendVLine(a1, color, y1, y2, x1);
         if((thk & 1) == 0) ((Rgb565GfxHelper *)this)->blendVLine(a2, color, y1, y2, x2 + 1);
     }
