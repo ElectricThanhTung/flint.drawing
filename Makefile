@@ -32,13 +32,12 @@ LDFLAGS         :=  -O0 -g
 INCLUDES      	:=  $(OBJECT_DIR)                                                                                   \
 					Graphics																						\
                     User/Inc																						\
-					Draw/Common/Inc																					\
-					Draw/Rgb565/Inc
+					Draw/Inc
 
-SOURCES       	:=  Draw/Common/Src/flint_gfx_common.cpp															\
-					Draw/Rgb565/Src/flint_fixed_point.cpp															\
-					Draw/Rgb565/Src/flint_rgb565_sw_gfx.cpp															\
-					Draw/Rgb565/Src/flint_rgb565_sw_gfx_helper.cpp													\
+SOURCES       	:=  Draw/Src/flint_gfx_common.cpp																	\
+					Draw/Src/flint_fixed_point.cpp																	\
+					Draw/Src/flint_rgb565_sw_gfx.cpp																\
+					Draw/Src/flint_rgb565_sw_gfx_helper.cpp															\
 					User/Src/main.cpp
 
 
