@@ -27,7 +27,8 @@ public:
     void fillEllipse(uint32_t color, int32_t x, int32_t y, uint32_t w, uint32_t h);
     void drawRoundRect(uint32_t color, int32_t thk, int32_t x, int32_t y, int32_t w, int32_t h, int32_t r1, int32_t r2, int32_t r3, int32_t r4);
     void fillRoundRect(uint32_t color, int32_t x, int32_t y, int32_t w, int32_t h, int32_t r1, int32_t r2, int32_t r3, int32_t r4);
-    void drawImage();
+    void drawImage(Image *img, int32_t x, int32_t y);
+    void drawImage(Image *img, int32_t x, int32_t y, uint16_t w, uint16_t h);
     void drawLatin1(uint8_t *str, uint32_t len, Font *font, uint32_t color, int32_t x, int32_t y);
     void drawUTF16(uint8_t *str, uint32_t len, Font *font, uint32_t color, int32_t x, int32_t y);
 private:

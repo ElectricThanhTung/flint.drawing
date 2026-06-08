@@ -616,8 +616,8 @@ void Rgb565Gfx::drawCircle(uint32_t color, int32_t thk, int32_t x, int32_t y, ui
         FP rri = square((FP)(d - thk) / (int32_t)2);
 
         FP ymax = FP::absMax(cy - clipY1, clipY2 - cy);
-        if(cy - clipY2 > (int32_t)1) yo = (d & 1) ? floor(cy - clipY2) : (floor(cy - clipY2) - FP::HALF);
-        else if(clipY1 - cy > (int32_t)1) yo = (d & 1) ? floor(clipY1 - cy) : (floor(clipY1 - cy) - FP::HALF);
+        if(cy - clipY2 > FP::ONE) yo = (d & 1) ? floor(cy - clipY2) : (floor(cy - clipY2) - FP::HALF);
+        else if(clipY1 - cy > FP::ONE) yo = (d & 1) ? floor(clipY1 - cy) : (floor(clipY1 - cy) - FP::HALF);
         else yo = (d & 1) ? FP::ONE : FP::HALF;
         if(d & 1) {
             DrawEllipseHLine2(this, color, cx, cy, (FP)(d + thk) / (int32_t)2, (FP)(d - thk) / (int32_t)2);
@@ -653,8 +653,8 @@ void Rgb565Gfx::drawCircle(uint32_t color, int32_t thk, int32_t x, int32_t y, ui
         yo0 = yo;
         FP xo0 = (d & 1) ? floor(xo) : (floor(xo) + FP::HALF);
         FP xmax = GFX_MIN(GFX_MAX(xil0, xir0) - FP::ONE, GFX_MAX(cx - clipX1, clipX2 - cx));
-        if(cx - clipX2 > (int32_t)1) xo = (d & 1) ? floor(cx - clipX2) : (floor(cx - clipX2) - FP::HALF);
-        else if(clipX1 - cx > (int32_t)1) xo = (d & 1) ? floor(clipX1 - cx) : (floor(clipX1 - cx) - FP::HALF);
+        if(cx - clipX2 > FP::ONE) xo = (d & 1) ? floor(cx - clipX2) : (floor(cx - clipX2) - FP::HALF);
+        else if(clipX1 - cx > FP::ONE) xo = (d & 1) ? floor(clipX1 - cx) : (floor(clipX1 - cx) - FP::HALF);
         else xo = (d & 1) ? FP::ONE : FP::HALF;
         for(; xo < xmax; ++xo) {
             FP xx = square(xo);
@@ -673,8 +673,8 @@ void Rgb565Gfx::drawCircle(uint32_t color, int32_t thk, int32_t x, int32_t y, ui
         FP rr = square((FP)d / (int32_t)2);
         FP yo, xo;
         FP ymax = FP::absMax(cy - clipY1, clipY2 - cy);
-        if(cy - clipY2 > (int32_t)1) yo = (d & 1) ? floor(cy - clipY2) : (floor(cy - clipY2) - FP::HALF);
-        else if(clipY1 - cy > (int32_t)1) yo = (d & 1) ? floor(clipY1 - cy) : (floor(clipY1 - cy) - FP::HALF);
+        if(cy - clipY2 > FP::ONE) yo = (d & 1) ? floor(cy - clipY2) : (floor(cy - clipY2) - FP::HALF);
+        else if(clipY1 - cy > FP::ONE) yo = (d & 1) ? floor(clipY1 - cy) : (floor(clipY1 - cy) - FP::HALF);
         else yo = (d & 1) ? FP::ONE : FP::HALF;
         if(d & 1) {
             PlotH2(this, color, cx, cy, (FP)d / (int32_t)2);
@@ -689,8 +689,8 @@ void Rgb565Gfx::drawCircle(uint32_t color, int32_t thk, int32_t x, int32_t y, ui
         }
 
         FP xmax = GFX_MIN(xo, GFX_MAX(cx - clipX1, clipX2 - cx));
-        if(cx - clipX2 > (int32_t)1) xo = (d & 1) ? floor(cx - clipX2) : (floor(cx - clipX2) - FP::HALF);
-        else if(clipX1 - cx > (int32_t)1) xo = (d & 1) ? floor(clipX1 - cx) : (floor(clipX1 - cx) - FP::HALF);
+        if(cx - clipX2 > FP::ONE) xo = (d & 1) ? floor(cx - clipX2) : (floor(cx - clipX2) - FP::HALF);
+        else if(clipX1 - cx > FP::ONE) xo = (d & 1) ? floor(clipX1 - cx) : (floor(clipX1 - cx) - FP::HALF);
         else xo = (d & 1) ? FP::ONE : FP::HALF;
         for(; xo < xmax; ++xo) {
             yo = sqrt(rr - square(xo));
@@ -718,8 +718,8 @@ void Rgb565Gfx::drawEllipse(uint32_t color, int32_t thk, int32_t x, int32_t y, u
         FP abi = aai * bbi;
 
         FP ymax = FP::absMax(cy - clipY1, clipY2 - cy);
-        if(cy - clipY2 > (int32_t)1) yo = (h & 1) ? floor(cy - clipY2) : (floor(cy - clipY2) - FP::HALF);
-        else if(clipY1 - cy > (int32_t)1) yo = (h & 1) ? floor(clipY1 - cy) : (floor(clipY1 - cy) - FP::HALF);
+        if(cy - clipY2 > FP::ONE) yo = (h & 1) ? floor(cy - clipY2) : (floor(cy - clipY2) - FP::HALF);
+        else if(clipY1 - cy > FP::ONE) yo = (h & 1) ? floor(clipY1 - cy) : (floor(clipY1 - cy) - FP::HALF);
         else yo = (h & 1) ? FP::ONE : FP::HALF;
         if(h & 1) DrawEllipseHLine2(this, color, cx, cy, (FP)(w + thk) / (int32_t)2, (FP)(w - thk) / (int32_t)2);
         if(w & 1) DrawEllipseVLine2(this, color, cx, cy, (FP)(h + thk) / (int32_t)2, (FP)(h - thk) / (int32_t)2);
@@ -753,8 +753,8 @@ void Rgb565Gfx::drawEllipse(uint32_t color, int32_t thk, int32_t x, int32_t y, u
         yo0 = yo;
         FP xo0 = (w & 1) ? floor(xo) : (floor(xo) + FP::HALF);
         FP xmax = GFX_MIN(GFX_MAX(xil0, xir0) - FP::ONE, GFX_MAX(cx - clipX1, clipX2 - cx));
-        if(cx - clipX2 > (int32_t)1) xo = (w & 1) ? floor(cx - clipX2) : (floor(cx - clipX2) - FP::HALF);
-        else if(clipX1 - cx > (int32_t)1) xo = (w & 1) ? floor(clipX1 - cx) : (floor(clipX1 - cx) - FP::HALF);
+        if(cx - clipX2 > FP::ONE) xo = (w & 1) ? floor(cx - clipX2) : (floor(cx - clipX2) - FP::HALF);
+        else if(clipX1 - cx > FP::ONE) xo = (w & 1) ? floor(clipX1 - cx) : (floor(clipX1 - cx) - FP::HALF);
         else xo = (w & 1) ? FP::ONE : FP::HALF;
         for(; xo < xmax; ++xo) {
             FP xx = square(xo);
@@ -776,8 +776,8 @@ void Rgb565Gfx::drawEllipse(uint32_t color, int32_t thk, int32_t x, int32_t y, u
 
         FP yo, xo;
         FP ymax = FP::absMax(cy - clipY1, clipY2 - cy);
-        if(cy - clipY2 > (int32_t)1) yo = (h & 1) ? floor(cy - clipY2) : (floor(cy - clipY2) - FP::HALF);
-        else if(clipY1 - cy > (int32_t)1) yo = (h & 1) ? floor(clipY1 - cy) : (floor(clipY1 - cy) - FP::HALF);
+        if(cy - clipY2 > FP::ONE) yo = (h & 1) ? floor(cy - clipY2) : (floor(cy - clipY2) - FP::HALF);
+        else if(clipY1 - cy > FP::ONE) yo = (h & 1) ? floor(clipY1 - cy) : (floor(clipY1 - cy) - FP::HALF);
         else yo = (h & 1) ? FP::ONE : FP::HALF;
         if(h & 1) PlotH2(this, color, cx, cy, (FP)w / (int32_t)2);
         if(w & 1) PlotV2(this, color, cx, cy, (FP)h / (int32_t)2);
@@ -790,8 +790,8 @@ void Rgb565Gfx::drawEllipse(uint32_t color, int32_t thk, int32_t x, int32_t y, u
         }
 
         FP xmax = GFX_MIN(xo, GFX_MAX(cx - clipX1, clipX2 - cx));
-        if(cx - clipX2 > (int32_t)1) xo = (w & 1) ? floor(cx - clipX2) : (floor(cx - clipX2) - FP::HALF);
-        else if(clipX1 - cx > (int32_t)1) xo = (w & 1) ? floor(clipX1 - cx) : (floor(clipX1 - cx) - FP::HALF);
+        if(cx - clipX2 > FP::ONE) xo = (w & 1) ? floor(cx - clipX2) : (floor(cx - clipX2) - FP::HALF);
+        else if(clipX1 - cx > FP::ONE) xo = (w & 1) ? floor(clipX1 - cx) : (floor(clipX1 - cx) - FP::HALF);
         else xo = (w & 1) ? FP::ONE : FP::HALF;
         for(; xo < xmax; ++xo) {
             yo = sqrt((ab - bb * square(xo)) / aa);
@@ -931,8 +931,8 @@ void Rgb565Gfx::fillCircle(uint32_t color, int32_t x, int32_t y, uint32_t d) {
 
     FP xo, yo;
     FP ymax = FP::absMax(cy - clipY1, clipY2 - cy);
-    if((cy - clipY2) >= (int32_t)1) yo = (d & 1) ? floor(cy - clipY2) : (floor(cy - clipY2) - FP::HALF);
-    else if(clipY1 - cy >= (int32_t)1) yo = (d & 1) ? floor(clipY1 - cy) : (floor(clipY1 - cy) - FP::HALF);
+    if((cy - clipY2) >= FP::ONE) yo = (d & 1) ? floor(cy - clipY2) : (floor(cy - clipY2) - FP::HALF);
+    else if(clipY1 - cy >= FP::ONE) yo = (d & 1) ? floor(clipY1 - cy) : (floor(clipY1 - cy) - FP::HALF);
     else yo = (d & 1) ? FP::ONE : FP::HALF;
     if(d & 1) DrawHLineAA(this, color, cx - r, cx + r, cy);
     while(true) {
@@ -945,8 +945,8 @@ void Rgb565Gfx::fillCircle(uint32_t color, int32_t x, int32_t y, uint32_t d) {
 
     FP yo0 = yo;
     FP xmax = GFX_MIN(xo, GFX_MAX(cx - clipX1, clipX2 - cx));
-    if(cx - clipX2 > (int32_t)1) xo = (d & 1) ? floor(cx - clipX2) : (floor(cx - clipX2) - FP::HALF);
-    else if(clipX1 - cx > (int32_t)1) xo = (d & 1) ? floor(clipX1 - cx) : (floor(clipX1 - cx) - FP::HALF);
+    if(cx - clipX2 > FP::ONE) xo = (d & 1) ? floor(cx - clipX2) : (floor(cx - clipX2) - FP::HALF);
+    else if(clipX1 - cx > FP::ONE) xo = (d & 1) ? floor(clipX1 - cx) : (floor(clipX1 - cx) - FP::HALF);
     else xo = (d & 1) ? FP::ONE : FP::HALF;
     for(; xo < xmax; ++xo) {
         yo = sqrt(rr - square(xo));
@@ -973,8 +973,8 @@ void Rgb565Gfx::fillEllipse(uint32_t color, int32_t x, int32_t y, uint32_t w, ui
 
     FP yo, xo;
     FP ymax = FP::absMax(cy - clipY1, clipY2 - cy);
-    if(cy - clipY2 > (int32_t)1) yo = (h & 1) ? floor(cy - clipY2) : (floor(cy - clipY2) - FP::HALF);
-    else if(clipY1 - cy > (int32_t)1) yo = (h & 1) ? floor(clipY1 - cy) : (floor(clipY1 - cy) - FP::HALF);
+    if(cy - clipY2 > FP::ONE) yo = (h & 1) ? floor(cy - clipY2) : (floor(cy - clipY2) - FP::HALF);
+    else if(clipY1 - cy > FP::ONE) yo = (h & 1) ? floor(clipY1 - cy) : (floor(clipY1 - cy) - FP::HALF);
     else yo = (h & 1) ? FP::ONE : FP::HALF;
     if(h & 1) DrawHLineAA(this, color, cx - a, cx + a, cy);
     while(true) {
@@ -987,8 +987,8 @@ void Rgb565Gfx::fillEllipse(uint32_t color, int32_t x, int32_t y, uint32_t w, ui
 
     FP yo0 = yo;
     FP xmax = GFX_MIN(xo, GFX_MAX(cx - clipX1, clipX2 - cx));
-    if(cx - clipX2 > (int32_t)1) xo = (w & 1) ? floor(cx - clipX2) : (floor(cx - clipX2) - FP::HALF);
-    else if(clipX1 - cx > (int32_t)1) xo = (w & 1) ? floor(clipX1 - cx) : (floor(clipX1 - cx) - FP::HALF);
+    if(cx - clipX2 > FP::ONE) xo = (w & 1) ? floor(cx - clipX2) : (floor(cx - clipX2) - FP::HALF);
+    else if(clipX1 - cx > FP::ONE) xo = (w & 1) ? floor(clipX1 - cx) : (floor(clipX1 - cx) - FP::HALF);
     else xo = (w & 1) ? FP::ONE : FP::HALF;
     for(; xo < xmax; ++xo) {
         yo = sqrt((ab - bb * square(xo)) / aa);
@@ -1008,7 +1008,7 @@ static void DrawQuarterCircle1(Rgb565Gfx *g, uint32_t color, int32_t thk, int32_
         FP rri = (thk >= r) ? (FP)0 : square(r - (FP)thk / (int32_t)2);
 
         FP ymax = cy - g->clipY1;
-        FP yo = (cy - g->clipY2 > (int32_t)1) ? floor(cy - g->clipY2) : FP::ONE;
+        FP yo = (cy - g->clipY2 > FP::ONE) ? floor(cy - g->clipY2) : FP::ONE;
         while(true) {
             if(yo > ymax) return;
             FP yy = square(yo);
@@ -1033,7 +1033,7 @@ static void DrawQuarterCircle1(Rgb565Gfx *g, uint32_t color, int32_t thk, int32_
         int32_t yo0 = cy - yo;
         FP xo0 = floor(xo);
         FP xmax = GFX_MIN(xi0 - FP::ONE, cx - g->clipX1);
-        xo = (cx - g->clipX2 > (int32_t)1) ? floor(cx - g->clipX2) : FP::ONE;
+        xo = (cx - g->clipX2 > FP::ONE) ? floor(cx - g->clipX2) : FP::ONE;
         for(; xo < xmax; ++xo) {
             FP xx = square(xo);
             yo = sqrt(rro - xx);
@@ -1054,7 +1054,7 @@ static void DrawQuarterCircle1(Rgb565Gfx *g, uint32_t color, int32_t thk, int32_
         FP rr = square(r + FP::HALF);
 
         FP ymax = cy - g->clipY1;
-        FP xo, yo = (cy - g->clipY2 > (int32_t)1) ? floor(cy - g->clipY2) : FP::ONE;
+        FP xo, yo = (cy - g->clipY2 > FP::ONE) ? floor(cy - g->clipY2) : FP::ONE;
         while(true) {
             if(yo > ymax) return;
             FP yy = square(yo);
@@ -1072,7 +1072,7 @@ static void DrawQuarterCircle1(Rgb565Gfx *g, uint32_t color, int32_t thk, int32_
         }
 
         FP xmax = GFX_MIN(floor(xo), cx - g->clipX1);
-        xo = (cx - g->clipX2 > (int32_t)1) ? floor(cx - g->clipX2) : FP::ONE;
+        xo = (cx - g->clipX2 > FP::ONE) ? floor(cx - g->clipX2) : FP::ONE;
         for(; xo <= xmax; ++xo) {
             yo = sqrt(rr - square(xo));
             uint8_t ai = (cy - yo).fraction(alpha);
@@ -1092,11 +1092,11 @@ static void DrawQuarterCircle2(Rgb565Gfx *g, uint32_t color, int32_t thk, int32_
         FP cx = x - FP::HALF;
         FP cy = y + r + FP::HALF;
         FP xo, xi, yi;
-        FP rro = square(r + (FP)thk / 2);
-        FP rri = (thk >= r) ? (FP)0 : square(r - (FP)thk / 2);
+        FP rro = square(r + (FP)thk / (int32_t)2);
+        FP rri = (thk >= r) ? (FP)0 : square(r - (FP)thk / (int32_t)2);
 
         FP ymax = cy - g->clipY1;
-        FP yo = (cy - g->clipY2 > (int32_t)1) ? floor(cy - g->clipY2) : FP::ONE;
+        FP yo = (cy - g->clipY2 > FP::ONE) ? floor(cy - g->clipY2) : FP::ONE;
         while(true) {
             if(yo > ymax) return;
             FP yy = square(yo);
@@ -1121,7 +1121,7 @@ static void DrawQuarterCircle2(Rgb565Gfx *g, uint32_t color, int32_t thk, int32_
         int32_t yo0 = cy - yo;
         FP xo0 = floor(xo);
         FP xmax = GFX_MIN(xi0, g->clipX2 - cx);
-        xo = (cx - g->clipX2 > (int32_t)1) ? floor(cx - g->clipX2) : FP::ONE;
+        xo = (cx - g->clipX2 > FP::ONE) ? floor(cx - g->clipX2) : FP::ONE;
         for(; xo < xmax; ++xo) {
             FP xx = square(xo);
             yo = sqrt(rro - xx);
@@ -1142,7 +1142,7 @@ static void DrawQuarterCircle2(Rgb565Gfx *g, uint32_t color, int32_t thk, int32_
         FP rr = square(r + FP::HALF);
 
         FP ymax = cy - g->clipY1;
-        FP xo, yo = (cy - g->clipY2 > (int32_t)1) ? floor(cy - g->clipY2) : FP::ONE;
+        FP xo, yo = (cy - g->clipY2 > FP::ONE) ? floor(cy - g->clipY2) : FP::ONE;
         while(true) {
             if(yo > ymax) return;
             FP yy = square(yo);
@@ -1160,7 +1160,7 @@ static void DrawQuarterCircle2(Rgb565Gfx *g, uint32_t color, int32_t thk, int32_
         }
 
         FP xmax = GFX_MIN(floor(xo), g->clipX2 - cx);
-        xo = (g->clipX1 - cx  > (int32_t)1) ? floor(g->clipX1 - cx) : FP::ONE;
+        xo = (g->clipX1 - cx  > FP::ONE) ? floor(g->clipX1 - cx) : FP::ONE;
         for(; xo <= xmax; ++xo) {
             yo = sqrt(rr - square(xo));
             uint8_t ai = (cy - yo).fraction(alpha);
@@ -1180,11 +1180,11 @@ static void DrawQuarterCircle3(Rgb565Gfx *g, uint32_t color, int32_t thk, int32_
         FP cx = x - FP::HALF;
         FP cy = y - FP::HALF;
         FP xo, xi, yi;
-        FP rro = square(r + (FP)thk / 2);
-        FP rri = (thk >= r) ? (FP)0 : square(r - (FP)thk / 2);
+        FP rro = square(r + (FP)thk / (int32_t)2);
+        FP rri = (thk >= r) ? (FP)0 : square(r - (FP)thk / (int32_t)2);
 
         FP ymax = g->clipY2 - cy;
-        FP yo = (g->clipY1 - cy > (int32_t)1) ? floor(g->clipY1 - cy) : FP::ONE;
+        FP yo = (g->clipY1 - cy > FP::ONE) ? floor(g->clipY1 - cy) : FP::ONE;
         while(true) {
             if(yo > ymax) return;
             FP yy = square(yo);
@@ -1209,7 +1209,7 @@ static void DrawQuarterCircle3(Rgb565Gfx *g, uint32_t color, int32_t thk, int32_
         int32_t yo0 = cy + yo;
         FP xo0 = floor(xo);
         FP xmax = GFX_MIN(xi0, g->clipX2 - cx);
-        xo = (g->clipX1 - cx > (int32_t)1) ? floor(g->clipX1 - cx) : FP::ONE;
+        xo = (g->clipX1 - cx > FP::ONE) ? floor(g->clipX1 - cx) : FP::ONE;
         for(; xo < xmax; ++xo) {
             FP xx = square(xo);
             yo = sqrt(rro - xx);
@@ -1230,7 +1230,7 @@ static void DrawQuarterCircle3(Rgb565Gfx *g, uint32_t color, int32_t thk, int32_
         FP rr = square(r + FP::HALF);
 
         FP ymax = g->clipY2 - cy;
-        FP xo, yo = (g->clipY1 - cy > (int32_t)1) ? floor(g->clipY1 - cy) : FP::ONE;
+        FP xo, yo = (g->clipY1 - cy > FP::ONE) ? floor(g->clipY1 - cy) : FP::ONE;
         while(true) {
             if(yo > ymax) return;
             FP yy = square(yo);
@@ -1248,7 +1248,7 @@ static void DrawQuarterCircle3(Rgb565Gfx *g, uint32_t color, int32_t thk, int32_
         }
 
         FP xmax = GFX_MIN(floor(xo), g->clipX2 - cx);
-        xo = (g->clipX1 - cx > (int32_t)1) ? floor(g->clipX1 - cx) : FP::ONE;
+        xo = (g->clipX1 - cx > FP::ONE) ? floor(g->clipX1 - cx) : FP::ONE;
         for(; xo <= xmax; ++xo) {
             yo = sqrt(rr - square(xo));
             uint8_t ao = (cy + yo).fraction(alpha);
@@ -1268,11 +1268,11 @@ static void DrawQuarterCircle4(Rgb565Gfx *g, uint32_t color, int32_t thk, int32_
         FP cx = x + r + FP::HALF;
         FP cy = y - FP::HALF;
         FP xo, xi, yi;
-        FP rro = square(r + (FP)thk / 2);
-        FP rri = (thk >= r) ? (FP)0 : square(r - (FP)thk / 2);
+        FP rro = square(r + (FP)thk / (int32_t)2);
+        FP rri = (thk >= r) ? (FP)0 : square(r - (FP)thk / (int32_t)2);
 
         FP ymax = g->clipY2 - cy;
-        FP yo = (g->clipY1 - cy > (int32_t)1) ? floor(g->clipY1 - cy) : FP::ONE;
+        FP yo = (g->clipY1 - cy > FP::ONE) ? floor(g->clipY1 - cy) : FP::ONE;
         while(true) {
             if(yo > ymax) return;
             FP yy = square(yo);
@@ -1297,7 +1297,7 @@ static void DrawQuarterCircle4(Rgb565Gfx *g, uint32_t color, int32_t thk, int32_
         int32_t yo0 = cy + yo;
         FP xo0 = floor(xo);
         FP xmax = GFX_MIN(xi0 - FP::ONE, cx - g->clipX1);
-        xo = (cx - g->clipX2 > (int32_t)1) ? floor(cx - g->clipX2) : FP::ONE;
+        xo = (cx - g->clipX2 > FP::ONE) ? floor(cx - g->clipX2) : FP::ONE;
         for(; xo < xmax; ++xo) {
             FP xx = square(xo);
             yo = sqrt(rro - xx);
@@ -1318,7 +1318,7 @@ static void DrawQuarterCircle4(Rgb565Gfx *g, uint32_t color, int32_t thk, int32_
         FP rr = square(r + FP::HALF);
 
         FP ymax = g->clipY2 - cy;
-        FP xo, yo = (g->clipY1 - cy > (int32_t)1) ? floor(g->clipY1 - cy) : FP::ONE;
+        FP xo, yo = (g->clipY1 - cy > FP::ONE) ? floor(g->clipY1 - cy) : FP::ONE;
         while(true) {
             if(yo > ymax) return;
             FP yy = square(yo);
@@ -1336,7 +1336,7 @@ static void DrawQuarterCircle4(Rgb565Gfx *g, uint32_t color, int32_t thk, int32_
         }
 
         FP xmax = GFX_MIN(floor(xo), cx - g->clipX1);
-        xo = (cx - g->clipX2 > (int32_t)1) ? floor(cx - g->clipX2) : FP::ONE;
+        xo = (cx - g->clipX2 > FP::ONE) ? floor(cx - g->clipX2) : FP::ONE;
         for(; xo <= xmax; ++xo) {
             yo = sqrt(rr - square(xo));
             uint8_t ao = (cy + yo).fraction(alpha);
@@ -1560,6 +1560,112 @@ void Rgb565Gfx::fillRoundRect(uint32_t color, int32_t x, int32_t y, int32_t w, i
     if(r2 > 0) FillQuarterCircle2(this, color, x + w - r2 + 1, y, r2);
     if(r3 > 0) FillQuarterCircle3(this, color, x + w - r3 + 1, y + h - r3 + 1, r3);
     if(r4 > 0) FillQuarterCircle4(this, color, x, y + h - r4 + 1, r4);
+}
+
+static void DrawImageRGB565(Rgb565Gfx *g, Image *img, int32_t x, int32_t y) {
+    uint16_t imgx = GFX_MAX(g->clipX1, x) - x;
+    uint16_t imgy = GFX_MAX(g->clipY1, y) - y;
+    uint16_t imgw = GFX_MIN(g->clipX2 + 1, x + img->width) - x;
+    uint16_t imgh = GFX_MIN(g->clipY2 + 1, y + img->height) - y;
+    if(imgx >= imgw) return;
+    for(; imgy < imgh; imgy++) {
+        uint16_t *src = &((uint16_t *)img->data)[imgy * img->width];
+        uint16_t *des = &((uint16_t *)g->data)[(imgy + y) * g->width];
+        memcpy(des, src, (imgw - imgx) * 2);
+    }
+}
+
+static void DrawImageARGB565(Rgb565Gfx *g, Image *img, int32_t x, int32_t y) {
+    uint8_t *alpha = &((uint8_t *)img->data)[img->width * img->height * 2];
+    uint16_t imgx = GFX_MAX(g->clipX1, x) - x;
+    uint16_t imgy = GFX_MAX(g->clipY1, y) - y;
+    uint16_t imgw = GFX_MIN(g->clipX2 + 1, x + img->width) - x;
+    uint16_t imgh = GFX_MIN(g->clipY2 + 1, y + img->height) - y;
+    if(imgx >= imgw) return;
+    for(; imgy < imgh; imgy++) {
+        uint16_t *src = &((uint16_t *)img->data)[imgy * img->width];
+        uint16_t *des = &((uint16_t *)g->data)[(imgy + y) * g->width];
+        uint32_t aIdx = imgy * img->width + imgx;
+        for(uint16_t i = imgx; i < imgw; i++) {
+            uint8_t a = (aIdx & 1) ? (alpha[aIdx >> 1] >> 4) : (alpha[aIdx >> 1] & 0x0F);
+            uint32_t bg = __builtin_bswap16(des[i]);
+            uint32_t fg = __builtin_bswap16(src[i]);
+            bg = (bg | (bg << 16)) & 0x07E0F81F;
+            fg = (fg | (fg << 16)) & 0x07E0F81F;
+            bg += (((fg) - bg) * a) >> 4;
+            bg &= 0x07E0F81F;
+            bg = (bg | (bg >> 16));
+            des[i] = __builtin_bswap16(bg);
+            aIdx++;
+        }
+    }
+}
+
+static void DrawImageARGB888(Rgb565Gfx *g, Image *img, int32_t x, int32_t y) {
+    // TODO
+}
+
+void Rgb565Gfx::drawImage(Image *img, int32_t x, int32_t y) {
+    switch(img->format) {
+        case IMG_RGB565: return DrawImageRGB565(this, img, x, y);
+        case IMG_ARGB565: return DrawImageARGB565(this, img, x, y);
+        default: return DrawImageARGB888(this, img, x, y);
+    }
+}
+
+static void DrawImageRGB565(Rgb565Gfx *g, Image *img, int32_t x, int32_t y, uint16_t w, uint16_t h) {
+    if(w == img->width && h == img->height) return DrawImageRGB565(g, img, x, y);
+    uint16_t imgx = GFX_MAX(g->clipX1, x) - x;
+    uint16_t imgy = GFX_MAX(g->clipY1, y) - y;
+    uint16_t imgw = GFX_MIN(g->clipX2 + 1, x + w) - x;
+    uint16_t imgh = GFX_MIN(g->clipY2 + 1, y + h) - y;
+    if(imgx >= imgw) return;
+    for(; imgy < imgh; imgy++) {
+        uint16_t *src = &((uint16_t *)img->data)[(imgy * img->height / h) * img->width];
+        uint16_t *des = &((uint16_t *)g->data)[(imgy + y) * g->width];
+        for(uint16_t i = imgx; i < imgw; i++) des[i] = src[i * img->width / w];
+    }
+}
+
+static void DrawImageARGB565(Rgb565Gfx *g, Image *img, int32_t x, int32_t y, uint16_t w, uint16_t h) {
+    if(w == img->width && h == img->height) return DrawImageARGB565(g, img, x, y);
+    uint8_t *alpha = &((uint8_t *)img->data)[img->width * img->height * 2];
+    uint16_t imgx = GFX_MAX(g->clipX1, x) - x;
+    uint16_t imgy = GFX_MAX(g->clipY1, y) - y;
+    uint16_t imgw = GFX_MIN(g->clipX2 + 1, x + w) - x;
+    uint16_t imgh = GFX_MIN(g->clipY2 + 1, y + h) - y;
+    if(imgx >= imgw) return;
+    for(; imgy < imgh; imgy++) {
+        uint32_t tmp = (imgy * img->height / h) * img->width;
+        uint16_t *src = &((uint16_t *)img->data)[tmp];
+        uint16_t *des = &((uint16_t *)g->data)[(imgy + y) * g->width];
+        for(uint16_t i = imgx; i < imgw; i++) {
+            uint32_t srcIdx = i * img->width / w;
+            uint32_t aIdx = tmp + srcIdx;
+            uint8_t a = (aIdx & 1) ? (alpha[aIdx >> 1] >> 4) : (alpha[aIdx >> 1] & 0x0F);
+            uint32_t bg = __builtin_bswap16(des[i]);
+            uint32_t fg = __builtin_bswap16(src[srcIdx]);
+            bg = (bg | (bg << 16)) & 0x07E0F81F;
+            fg = (fg | (fg << 16)) & 0x07E0F81F;
+            bg += (((fg) - bg) * a) >> 4;
+            bg &= 0x07E0F81F;
+            bg = (bg | (bg >> 16));
+            des[i] = __builtin_bswap16(bg);
+        }
+    }
+}
+
+static void DrawImageARGB888(Rgb565Gfx *g, Image *img, int32_t x, int32_t y, uint16_t w, uint16_t h) {
+    if(w == img->width && h == img->height) return DrawImageARGB888(g, img, x, y);
+    // TODO
+}
+
+void Rgb565Gfx::drawImage(Image *img, int32_t x, int32_t y, uint16_t w, uint16_t h) {
+    switch(img->format) {
+        case IMG_RGB565: return DrawImageRGB565(this, img, x, y, w, h);
+        case IMG_ARGB565: return DrawImageARGB565(this, img, x, y, w, h);
+        default: return DrawImageARGB888(this, img, x, y, w, h);
+    }
 }
 
 static void DrawChar(Rgb565GfxHelper *g, const CharInfo *c, uint32_t color, int32_t x, int32_t y) {

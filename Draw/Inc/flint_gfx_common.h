@@ -48,14 +48,23 @@ private:
     Font(const Font &) = delete;
 };
 
+typedef enum : uint8_t {
+    IMG_RGB332,
+    IMG_ARGB222,
+    IMG_RGB565,
+    IMG_ARGB565,
+    IMG_ARGB888,
+} ImgFormat;
+
 class Image {
 public:
+    const ImgFormat format;
     const uint16_t width;
     const uint16_t height;
-    const uint8_t *data;
+    const void *data;
 
     constexpr inline __attribute__((always_inline))
-    Image(uint16_t width, uint16_t height, uint8_t *data) : width(width), height(height), data(data) {
+    Image(ImgFormat format, uint16_t width, uint16_t height, const void *data) : format(format), width(width), height(height), data(data) {
 
     };
 };

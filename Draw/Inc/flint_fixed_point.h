@@ -49,7 +49,7 @@ public:
         return *this;
     }
 
-    constexpr inline __attribute__((always_inline)) FP operator++(int32_t) {
+    constexpr inline __attribute__((always_inline)) FP operator++(int) {
         FP tmp = *this;
         value += (1 << FP_PRECISION);
         return tmp;
@@ -60,7 +60,7 @@ public:
         return *this;
     }
 
-    constexpr inline __attribute__((always_inline)) FP operator--(int32_t) {
+    constexpr inline __attribute__((always_inline)) FP operator--(int) {
         FP tmp = *this;
         value -= (1 << FP_PRECISION);
         return tmp;
