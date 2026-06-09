@@ -72,6 +72,7 @@ void Rgb565Gfx::drawLine(uint32_t color, int32_t thk, int32_t x1, int32_t y1, in
     if(x1 == x2 && y1 == y2)
         return;
     uint8_t alpha = color >> 27;
+    if(thk < 1) thk = 1;
     if(y1 == y2) {
         if(x1 > x2) GFX_SWAP(x1, x2);
         int32_t half = (thk - 1) >> 1;
@@ -183,7 +184,7 @@ void Rgb565Gfx::drawLine(uint32_t color, int32_t thk, int32_t x1, int32_t y1, in
             uint8_t astep2 = (alpha * dy2 + (dx2 >> 1)) / dx2;
 
             for(; y <= ymax; y++) {
-                int32_t x1 = (p[0].y - y) * dx1;
+                int32_t i, x1 = (p[0].y - y) * dx1;
                 int32_t fx1 = fpmax - (((x1 << FP_PRECISION) / dy1) & fpmask);
                 x1 = p[0].x + x1 / dy1;
 
@@ -192,20 +193,22 @@ void Rgb565Gfx::drawLine(uint32_t color, int32_t thk, int32_t x1, int32_t y1, in
                 x2 = p[1].x + x2 / dy2;
 
                 int16_t a = (dx1 < dy1) ? (fx1 * alpha / fpmax) : (alpha - astep1 + fx1 * dy1 / dx1 * alpha / fpmax);
-                for(int32_t i = x1++; a > 0 && i >= p[0].x; i--) {
+                for(i = x1++; a > 0 && i >= p[0].x; i--) {
                     ((Rgb565GfxHelper *)this)->blendPixel(a, color, i, y);
                     a -= astep1;
                 }
 
                 a = (dx2 < dy2) ? (fx2 * alpha / fpmax) : (alpha - astep2 + fx2 * dy2 / dx2 * alpha / fpmax);
-                for(int32_t i = x2--; a > 0 && i <= p[2].x; i++) {
+                i = x2--;
+                while(i <= x1) { i++; a -= astep2; }
+                for(; a > 0 && i <= p[2].x; i++) {
                     ((Rgb565GfxHelper *)this)->blendPixel(a, color, i, y);
                     a -= astep2;
                 }
 
                 ((Rgb565GfxHelper *)this)->blendHLine(alpha, color, x1, x2, y);
             }
-            ymax = GFX_MIN(this->clipY2, GFX_MAX(p[0].y, p[2].y));
+            ymax = GFX_MIN(this->clipY2 + 1, GFX_MAX(p[0].y, p[2].y));
             if(p[0].y < p[2].y) for(; y < ymax; y++) {
                 int32_t x1 = (y - p[0].y) * dx2;
                 int32_t fx1 = fpmax - (((x1 << FP_PRECISION) / dy2) & fpmask);
@@ -253,8 +256,8 @@ void Rgb565Gfx::drawLine(uint32_t color, int32_t thk, int32_t x1, int32_t y1, in
                 ((Rgb565GfxHelper *)this)->blendHLine(alpha, color, x1, x2, y);
             }
             ymax = GFX_MIN(this->clipY2, p[3].y);
-            for(; y <= ymax; y++) {
-                int32_t x1 = (y - p[0].y) * dx2;
+            if(y >= p[0].y && y >= p[2].y) for(; y <= ymax; y++) {
+                int32_t i, x1 = (y - p[0].y) * dx2;
                 int32_t fx1 = fpmax - (((x1 << FP_PRECISION) / dy2) & fpmask);
                 x1 = p[0].x + x1 / dy2;
 
@@ -263,13 +266,15 @@ void Rgb565Gfx::drawLine(uint32_t color, int32_t thk, int32_t x1, int32_t y1, in
                 x2 = p[3].x + x2 / dy1;
 
                 int16_t a = (dx2 < dy2) ? (fx1 * alpha / fpmax) : (alpha - astep2 + fx1 * dy2 / dx2 * alpha / fpmax);
-                for(int32_t i = x1++; a > 0 && i >= p[0].x; i--) {
+                for(i = x1++; a > 0 && i >= p[0].x; i--) {
                     ((Rgb565GfxHelper *)this)->blendPixel(a, color, i, y);
                     a -= astep2;
                 }
 
                 a = (dx1 < dy1) ? (fx2 * alpha / fpmax) : (alpha - astep1 + fx2 * dy1 / dx1 * alpha / fpmax);
-                for(int32_t i = x2--; a > 0 && i <= p[2].x; i++) {
+                i = x2--;
+                while(i <= x1) { i++; a -= astep1; }
+                for(; a > 0 && i <= p[2].x; i++) {
                     ((Rgb565GfxHelper *)this)->blendPixel(a, color, i, y);
                     a -= astep1;
                 }
@@ -281,6 +286,7 @@ void Rgb565Gfx::drawLine(uint32_t color, int32_t thk, int32_t x1, int32_t y1, in
 }
 
 void Rgb565Gfx::drawRect(uint32_t color, int32_t thk, int32_t x, int32_t y, int32_t w, int32_t h) {
+    if(thk < 1) thk = 1;
     if(!IsVisible(this, x - thk / 2, y - thk / 2, w + thk - (thk & 1), h + thk - (thk & 1))) return;
     uint8_t alpha = color >> 27;
     int32_t half = (thk - 1) >> 1;
@@ -700,6 +706,7 @@ void Rgb565Gfx::drawCircle(uint32_t color, int32_t thk, int32_t x, int32_t y, ui
 }
 
 void Rgb565Gfx::drawEllipse(uint32_t color, int32_t thk, int32_t x, int32_t y, uint32_t w, uint32_t h) {
+    if(thk < 1) thk = 1;
     if(w == h) return drawCircle(color, thk, x, y, w);
     if(!IsVisible(this, x - thk / 2, y - thk / 2, w + thk - (thk & 1), h + thk - (thk & 1))) return;
     w++;
@@ -1350,6 +1357,7 @@ static void DrawQuarterCircle4(Rgb565Gfx *g, uint32_t color, int32_t thk, int32_
 }
 
 void Rgb565Gfx::drawRoundRect(uint32_t color, int32_t thk, int32_t x, int32_t y, int32_t w, int32_t h, int32_t r1, int32_t r2, int32_t r3, int32_t r4) {
+    if(thk < 1) thk = 1;
     if(!IsVisible(this, x - thk / 2, y - thk / 2, w + thk - (thk & 1), h + thk - (thk & 1))) return;
     RadiusAdjustment(w, h, r1, r2, r3, r4);
 
