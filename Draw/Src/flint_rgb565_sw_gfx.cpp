@@ -1556,9 +1556,9 @@ void Rgb565Gfx::fillRoundRect(uint32_t color, int32_t x, int32_t y, int32_t w, i
     uint8_t alpha = color >> 27;
     int32_t x1, x2;
     int32_t y1 = GFX_MAX(clipY1 - y, 0);
-    int32_t y2 = GFX_MIN(clipY2 - y, h);
+    int32_t y2 = GFX_MIN(clipY2 - y, h - 1);
 
-    for(int32_t i = y1; i < y2; i++) {
+    for(int32_t i = y1; i <= y2; i++) {
         x1 = x + (i < r1 ? r1 : (i > (h - r4) ? r4 : 0));
         x2 = x + w - 1 - (i < r2 ? r2 : (i > (h - r3) ? r3 : 0));
         ((Rgb565GfxHelper *)this)->blendHLine(alpha, color, x1, x2, i + y);
@@ -1571,40 +1571,42 @@ void Rgb565Gfx::fillRoundRect(uint32_t color, int32_t x, int32_t y, int32_t w, i
 }
 
 static void DrawImageRGB565(Rgb565Gfx *g, Image *img, int32_t x, int32_t y) {
-    uint16_t imgx = GFX_MAX(g->clipX1, x) - x;
-    uint16_t imgy = GFX_MAX(g->clipY1, y) - y;
-    uint16_t imgw = GFX_MIN(g->clipX2 + 1, x + img->width) - x;
-    uint16_t imgh = GFX_MIN(g->clipY2 + 1, y + img->height) - y;
-    if(imgx >= imgw) return;
-    for(; imgy < imgh; imgy++) {
-        uint16_t *src = &((uint16_t *)img->data)[imgy * img->width];
-        uint16_t *des = &((uint16_t *)g->data)[(imgy + y) * g->width];
-        memcpy(des, src, (imgw - imgx) * 2);
+    int32_t cx1 = GFX_MAX(GFX_MAX(x, (int32_t)g->clipX1), 0);
+    int32_t cy1 = GFX_MAX(GFX_MAX(y, (int32_t)g->clipY1), 0);
+    int32_t cx2 = GFX_MIN(GFX_MIN(x + (int32_t)img->width,  (int32_t)g->clipX2 + 1), (int32_t)g->width);
+    int32_t cy2 = GFX_MIN(GFX_MIN(y + (int32_t)img->height, (int32_t)g->clipY2 + 1), (int32_t)g->height);
+    if(cx1 >= cx2 || cy1 >= cy2) return;
+    int32_t w = cx2 - cx1;
+    for(int32_t dy = cy1; dy < cy2; dy++) {
+        uint16_t *src = &((uint16_t *)img->data)[(dy - y) * (int32_t)img->width + (cx1 - x)];
+        uint16_t *des = &((uint16_t *)g->data)[dy * (int32_t)g->width + cx1];
+        memcpy(des, src, (size_t)w * 2);
     }
 }
 
 static void DrawImageARGB565(Rgb565Gfx *g, Image *img, int32_t x, int32_t y) {
-    uint8_t *alpha = &((uint8_t *)img->data)[img->width * img->height * 2];
-    uint16_t imgx = GFX_MAX(g->clipX1, x) - x;
-    uint16_t imgy = GFX_MAX(g->clipY1, y) - y;
-    uint16_t imgw = GFX_MIN(g->clipX2 + 1, x + img->width) - x;
-    uint16_t imgh = GFX_MIN(g->clipY2 + 1, y + img->height) - y;
-    if(imgx >= imgw) return;
-    for(; imgy < imgh; imgy++) {
-        uint16_t *src = &((uint16_t *)img->data)[imgy * img->width];
-        uint16_t *des = &((uint16_t *)g->data)[(imgy + y) * g->width];
-        uint32_t aIdx = imgy * img->width + imgx;
-        for(uint16_t i = imgx; i < imgw; i++) {
+    uint8_t *alpha = &((uint8_t *)img->data)[(uint32_t)img->width * img->height * 2];
+    int32_t cx1 = GFX_MAX(GFX_MAX(x, (int32_t)g->clipX1), 0);
+    int32_t cy1 = GFX_MAX(GFX_MAX(y, (int32_t)g->clipY1), 0);
+    int32_t cx2 = GFX_MIN(GFX_MIN(x + (int32_t)img->width,  (int32_t)g->clipX2 + 1), (int32_t)g->width);
+    int32_t cy2 = GFX_MIN(GFX_MIN(y + (int32_t)img->height, (int32_t)g->clipY2 + 1), (int32_t)g->height);
+    if(cx1 >= cx2 || cy1 >= cy2) return;
+    for(int32_t dy = cy1; dy < cy2; dy++) {
+        int32_t sy = dy - y;
+        uint16_t *src = &((uint16_t *)img->data)[sy * (int32_t)img->width];
+        uint16_t *des = &((uint16_t *)g->data)[dy * (int32_t)g->width];
+        for(int32_t dx = cx1; dx < cx2; dx++) {
+            int32_t sx = dx - x;
+            uint32_t aIdx = (uint32_t)sy * img->width + sx;
             uint8_t a = (aIdx & 1) ? (alpha[aIdx >> 1] >> 4) : (alpha[aIdx >> 1] & 0x0F);
-            uint32_t bg = __builtin_bswap16(des[i]);
-            uint32_t fg = __builtin_bswap16(src[i]);
+            uint32_t bg = __builtin_bswap16(des[dx]);
+            uint32_t fg = __builtin_bswap16(src[sx]);
             bg = (bg | (bg << 16)) & 0x07E0F81F;
             fg = (fg | (fg << 16)) & 0x07E0F81F;
             bg += (((fg) - bg) * a) >> 4;
             bg &= 0x07E0F81F;
             bg = (bg | (bg >> 16));
-            des[i] = __builtin_bswap16(bg);
-            aIdx++;
+            des[dx] = __builtin_bswap16(bg);
         }
     }
 }
@@ -1688,16 +1690,19 @@ static void DrawChar(Rgb565GfxHelper *g, const CharInfo *c, uint32_t color, int3
     if(alpha == 0x1F) {
         for(int32_t cy = 0; cy < height; cy++) {
             int32_t py = y + cy + yOff;
-            if(!(g->clipY1 <= y && y <= g->clipY2)) continue;
+            if(!(g->clipY1 <= py && py <= g->clipY2)) continue;
             uint16_t *p = &((uint16_t *)g->data)[py * g->width + x];
-            for(int32_t cx = cx0; cx < cxw; cx++)
-                if(c->getPixel(cx, cy)) p[cx] = color;
+            for(int32_t cx = cx0; cx < cxw; cx++) {
+                int32_t px = x + cx;
+                if(g->clipX1 <= px && px <= g->clipX2)
+                    if(c->getPixel(cx, cy)) p[cx] = color;
+            }
         }
     }
     else {
         for(int32_t cy = 0; cy < height; cy++) {
             int32_t py = y + cy + yOff;
-            if(!(g->clipY1 <= y && y <= g->clipY2)) continue;
+            if(!(g->clipY1 <= py && py <= g->clipY2)) continue;
             for(int32_t cx = cx0; cx < cxw; cx++)
                 if(c->getPixel(cx, cy)) g->blendPixel(alpha, color, x + cx, py);
         }
@@ -1718,7 +1723,7 @@ void Rgb565Gfx::drawLatin1(uint8_t *str, uint32_t len, Font *font, uint32_t colo
             x += c->getWidth() + space;
         }
         else {
-            fillRect(color, x, y, stdWidth - 1, stdHeight - 1);
+            fillRect(color, x, y, stdWidth, stdHeight);
             x += stdWidth + space;
         }
     }
@@ -1739,7 +1744,7 @@ void Rgb565Gfx::drawUTF16(uint8_t *str, uint32_t len, Font *font, uint32_t color
             x += c->getWidth() + space;
         }
         else {
-            fillRect(color, x, y, stdWidth - 1, stdHeight - 1);
+            fillRect(color, x, y, stdWidth, stdHeight);
             x += stdWidth + space;
         }
         str += 2;
